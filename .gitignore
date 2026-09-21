@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.env
+!.env.template
+*.db
+*.sqlite
+
+# Licenze e cache locale (NON COMMITTARE)
+license_cache.json
+license.jwt
+license_public_key.pem
+
+# Log files
+logs/
+*.log
+
+# Database backups (DO NOT COMMIT)
+backups/
+
+# Document blob storage (§31)
+data/documents/
+
+node_modules/
+frontend/build/
+frontend/.env.local
+
+.DS_Store
+Thumbs.db

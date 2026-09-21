@@ -1,0 +1,251 @@
+import React, { useEffect, useState } from 'react';
+import {
+  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch,
+  Table, TableBody, TableCell, TableHead, TableRow, Typography,
+} from '@mui/material';
+import SchoolIcon from '@mui/icons-material/School';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import BadgeIcon from '@mui/icons-material/Badge';
+import { PramaLayout } from '../components/PramaLayout';
+import {
+  EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, missingRequired, postAction,
+} from '../components/EntityCrud';
+import { apiClient } from '../services/apiClient';
+import { usePermissions } from '../services/permissions';
+import { useTranslation } from '../i18n/useTranslation';
+
+const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
+const isPast = (iso: string | null) => Boolean(iso && iso.slice(0, 10) < new Date().toISOString().slice(0, 10));
+const ROLES = ['TENANT_ADMIN', 'PRIVACY_MANAGER', 'DPO', 'MANAGER', 'PRIVACY_REFERENT', 'ICT', 'RTD', 'OPERATOR', 'AUDITOR', 'READ_ONLY'];
+
+// ---------------------------------------------------------------- formazione (§44)
+
+const TR = '/api/privacypa/training';
+const userList = (text: unknown) => String(text || '').split(/[\s,;]+/).filter(Boolean);
+
+const CourseDetail: React.FC<{ course: any }> = ({ course }) => {
+  const { t } = useTranslation('privacypa');
+  const { can } = usePermissions();
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState<{ row: any; mode: 'complete' | 'waive' } | null>(null);
+  const [values, setValues] = useState<Values>({});
+
+  const load = async () => {
+    try {
+      setAssignments(await apiClient.get<any[]>(`${TR}/assignments?course_id=${course.id}`));
+      setSessions(await apiClient.get<any[]>(`${TR}/courses/${course.id}/sessions`));
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+  useEffect(() => { load(); }, [course.id]);
+
+  const fields: FieldSpec[] = running?.mode === 'complete'
+    ? [{ name: 'completed_at', type: 'date', required: true }, { name: 'score', type: 'number' }]
+    : [{ name: 'reason', type: 'textarea', required: true }];
+
+  const confirm = async () => {
+    if (!running) return;
+    const body = bodyFromValues(fields, values);
+    try {
+      await apiClient.post(`${TR}/assignments/${running.row.id}/${running.mode}`, body, { version: running.row.row_version });
+      setRunning(null);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <>
+      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      <Typography variant="subtitle2">{t('people.sessions')}</Typography>
+      {sessions.length === 0 && <Typography variant="body2" color="text.secondary">{t('wf.empty')}</Typography>}
+      {sessions.map((s) => (
+        <Typography key={s.id} variant="body2">{day(s.session_date)}{s.trainer ? ` — ${s.trainer}` : ''}{s.location ? ` (${s.location})` : ''}</Typography>
+      ))}
+      <Typography variant="subtitle2" sx={{ mt: 1 }}>{t('people.assignments')}</Typography>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>{t('wf.columns.user')}</TableCell><TableCell>{t('wf.columns.due_date')}</TableCell>
+            <TableCell>{t('wf.columns.status')}</TableCell><TableCell />
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {assignments.length === 0 && <TableRow><TableCell colSpan={4}>{t('wf.empty')}</TableCell></TableRow>}
+          {assignments.map((a) => (
+            <TableRow key={a.id}>
+              <TableCell>{a.user_id}</TableCell>
+              <TableCell sx={{ color: a.status === 'ASSIGNED' && isPast(a.due_date) ? '#ef4444' : undefined }}>{day(a.due_date)}</TableCell>
+              <TableCell><StatusChip enumName="assignmentStatus" value={a.status} color={a.status === 'COMPLETED' ? 'success' : 'default'} /></TableCell>
+              <TableCell align="right">
+                {a.status === 'ASSIGNED' && can('training.edit') && (
+                  <>
+                    <Button size="small" color="success" onClick={() => { setValues(emptyFor([{ name: 'completed_at', type: 'date' }, { name: 'score', type: 'number' }])); setRunning({ row: a, mode: 'complete' }); }}>{t('wf.actions.complete')}</Button>
+                    <Button size="small" color="warning" onClick={() => { setValues(emptyFor([{ name: 'reason', type: 'textarea' }])); setRunning({ row: a, mode: 'waive' }); }}>{t('wf.actions.waive')}</Button>
+                  </>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <Dialog open={Boolean(running)} onClose={() => setRunning(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{running ? t(`wf.actions.${running.mode}`) : ''}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <FormFields fields={fields} values={values} onChange={setValues} units={[]} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRunning(null)}>{t('common.cancel')}</Button>
+          <Button variant="contained" onClick={confirm} disabled={missingRequired(fields, values)}>{t('wf.confirm')}</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+};
+
+export const TrainingCoursesPage: React.FC = () => {
+  const { t } = useTranslation('privacypa');
+  const hasTargets = (r: any) => (r.target_roles || []).length > 0 || (r.target_unit_ids || []).length > 0;
+  return (
+    <EntityCrudPage
+      page="training" icon={<SchoolIcon color="primary" />} endpoint={`${TR}/courses`} perm="training"
+      fields={[
+        { name: 'title', type: 'text', required: true }, { name: 'version', type: 'text', required: true },
+        { name: 'description', type: 'textarea' }, { name: 'mandatory', type: 'boolean' },
+        { name: 'validity_months', type: 'number', hint: 'wf.hints.validity_months' },
+        { name: 'target_roles', type: 'multiselect', options: ROLES, enumName: 'role' },
+        { name: 'target_unit_ids', type: 'units' },
+      ]}
+      columns={[
+        { key: 'code', render: (r) => r.code }, { key: 'title', render: (r) => r.title }, { key: 'version', render: (r) => r.version },
+        { key: 'mandatory', render: (r) => (r.mandatory ? <Chip size="small" color="warning" label={t('wf.tristate.yes')} /> : t('wf.tristate.no')) },
+        { key: 'validity', render: (r) => (r.validity_months ? `${r.validity_months} ${t('people.months')}` : '—') },
+        { key: 'active', render: (r) => <Chip size="small" color={r.active ? 'success' : 'default'} label={t(r.active ? 'people.active' : 'people.retired')} /> },
+      ]}
+      detail={(row) => <CourseDetail course={row} />}
+      actions={[
+        { key: 'assign', permission: 'training.edit', visible: (r) => r.active,
+          fields: [{ name: 'user_ids', type: 'textarea', required: true, hint: 'wf.hints.user_ids' }, { name: 'due_date', type: 'date', required: true }],
+          run: (r, v) => apiClient.post(`${TR}/courses/${r.id}/assign`, { user_ids: userList(v.user_ids), due_date: v.due_date }).then(() => undefined) },
+        { key: 'assign_targets', permission: 'training.edit', visible: (r) => r.active && hasTargets(r),
+          fields: [{ name: 'due_date', type: 'date', required: true }],
+          run: (r, v) => apiClient.post(`${TR}/courses/${r.id}/assign-targets`, { due_date: v.due_date }).then(() => undefined) },
+        { key: 'add_session', permission: 'training.edit',
+          fields: [{ name: 'session_date', type: 'date', required: true }, { name: 'trainer', type: 'text' }, { name: 'location', type: 'text' }],
+          run: (r, v) => apiClient.post(`${TR}/courses/${r.id}/sessions`, { session_date: v.session_date, trainer: v.trainer, location: v.location }).then(() => undefined) },
+        { key: 'retire', permission: 'training.edit', color: 'warning', visible: (r) => r.active,
+          run: (r) => apiClient.post(`${TR}/courses/${r.id}/active`, { active: false }, { version: r.row_version }).then(() => undefined) },
+        { key: 'activate', permission: 'training.edit', visible: (r) => !r.active,
+          run: (r) => apiClient.post(`${TR}/courses/${r.id}/active`, { active: true }, { version: r.row_version }).then(() => undefined) },
+      ]}
+    />
+  );
+};
+
+// Assegnazioni: chi gestisce la formazione vede tutte, gli altri solo le proprie (lo decide il server).
+export const TrainingAssignmentsPage: React.FC = () => {
+  const { t } = useTranslation('privacypa');
+  const [rows, setRows] = useState<any[]>([]);
+  const [courses, setCourses] = useState<Record<string, any>>({});
+  const [mine, setMine] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiClient.get<any[]>(`${TR}/courses`).then((list) => setCourses(Object.fromEntries(list.map((c) => [c.id, c])))).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    apiClient.get<any[]>(`${TR}/assignments${mine ? '?mine=true' : ''}`).then(setRows).catch((err) => setError(err.message));
+  }, [mine]);
+
+  return (
+    <PramaLayout pageTitle={t('wf.pages.trainingAssignments.title')}>
+      <Container maxWidth="xl">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <BadgeIcon color="primary" />
+          <Typography variant="h4" fontWeight={600}>{t('wf.pages.trainingAssignments.title')}</Typography>
+          <Box sx={{ flex: 1 }} />
+          <FormControlLabel control={<Switch checked={mine} onChange={(e) => setMine(e.target.checked)} />} label={t('people.only_mine')} />
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('wf.pages.trainingAssignments.subtitle')}</Typography>
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <Paper sx={{ overflowX: 'auto' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {['course', 'user', 'due_date', 'status'].map((k) => <TableCell key={k}>{t(`wf.columns.${k}`)}</TableCell>)}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.length === 0 && <TableRow><TableCell colSpan={4}><Typography variant="body2" color="text.secondary">{t('wf.empty')}</Typography></TableCell></TableRow>}
+              {rows.map((a) => (
+                <TableRow key={a.id} hover>
+                  <TableCell>{courses[a.course_id] ? `${courses[a.course_id].code} — ${courses[a.course_id].title}` : a.course_id}</TableCell>
+                  <TableCell>{a.user_id}</TableCell>
+                  <TableCell sx={{ color: a.status === 'ASSIGNED' && isPast(a.due_date) ? '#ef4444' : undefined }}>{day(a.due_date)}</TableCell>
+                  <TableCell><StatusChip enumName="assignmentStatus" value={a.status} color={a.status === 'COMPLETED' ? 'success' : 'default'} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      </Container>
+    </PramaLayout>
+  );
+};
+
+// ---------------------------------------------------------------- autorizzati al trattamento (§45)
+
+const AU = '/api/privacypa/authorizations';
+const API = '/api/privacypa';
+
+export const AuthorizationsPage: React.FC = () => {
+  const { t } = useTranslation('privacypa');
+  const [names, setNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const load = (path: string, label: (r: any) => string) => apiClient.get<any[]>(path).then((rows) => rows.map((r) => [r.id, label(r)] as [string, string])).catch(() => []);
+    Promise.all([
+      load(`${API}/processing-activities`, (r) => `${r.code} — ${r.title}`), load(`${API}/assets`, (r) => r.name), load(`${AU}/profiles`, (r) => r.name),
+    ]).then((lists) => setNames(Object.fromEntries(lists.flat())));
+  }, []);
+  const state = (r: any) => (r.revoked_at ? 'revoked' : r.active ? 'active' : 'expired');
+
+  return (
+    <EntityCrudPage
+      page="authorizations" icon={<VerifiedUserIcon color="primary" />} endpoint={AU} perm="authorization"
+      canEditRow={(r) => !r.revoked_at}
+      fields={[
+        { name: 'user_id', type: 'text', required: true, createOnly: true },
+        { name: 'processing_activity_id', type: 'ref', refEndpoint: `${API}/processing-activities`, refLabel: (r) => `${r.code} — ${r.title}` },
+        { name: 'asset_id', type: 'ref', refEndpoint: `${API}/assets`, refLabel: (r) => r.name },
+        { name: 'authorization_profile_id', type: 'ref', refEndpoint: `${AU}/profiles`, required: true },
+        { name: 'valid_from', type: 'date', required: true }, { name: 'valid_to', type: 'date' },
+      ]}
+      toBody={(body, editing) => (editing ? { ...body, user_id: editing.user_id } : body)}
+      columns={[
+        { key: 'user', render: (r) => r.user_id },
+        { key: 'subject', render: (r) => names[r.processing_activity_id] || names[r.asset_id] || '—' },
+        { key: 'profile', render: (r) => names[r.authorization_profile_id] || '—' },
+        { key: 'period', render: (r) => `${day(r.valid_from)} → ${day(r.valid_to)}` },
+        { key: 'status', render: (r) => <Chip size="small" color={state(r) === 'active' ? 'success' : state(r) === 'expired' ? 'warning' : 'default'} label={t(`people.auth_state.${state(r)}`)} /> },
+        { key: 'reviewed', render: (r) => day(r.last_reviewed_at) },
+      ]}
+      actions={[
+        { key: 'confirm_review', permission: 'authorization.edit', visible: (r) => !r.revoked_at, run: postAction(AU, '/confirm-review') },
+        { key: 'revoke', permission: 'authorization.edit', color: 'error', visible: (r) => !r.revoked_at, notes: 'required',
+          run: (r, v) => apiClient.post(`${AU}/${r.id}/revoke`, { reason: v.notes }, { version: r.row_version }).then(() => undefined) },
+      ]}
+    />
+  );
+};
+
+export const AuthorizationProfilesPage: React.FC = () => (
+  <EntityCrudPage
+    page="authProfiles" icon={<VerifiedUserIcon color="primary" />} endpoint={`${AU}/profiles`} perm="authorization" allowDelete
+    fields={[{ name: 'name', type: 'text', required: true }, { name: 'description', type: 'textarea' }]}
+    columns={[{ key: 'name', render: (r) => r.name }, { key: 'description', render: (r) => r.description || '—' }]}
+  />
+);

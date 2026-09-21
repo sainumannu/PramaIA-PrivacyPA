@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8003:8003"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3003:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8003
+      - REACT_APP_APP_ID=PramaIA-PrivacyManager
+      - REACT_APP_PORTAL_URL=http://localhost:3080
+    depends_on:
+      - backend
+    restart: unless-stopped

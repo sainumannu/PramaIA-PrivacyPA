@@ -1,0 +1,69 @@
+{
+  "title": "License",
+  "status": {
+    "valid": "License valid",
+    "invalid": "License invalid",
+    "expired": "License expired",
+    "missing": "License not found",
+    "maintenance_expired": "Maintenance expired",
+    "environment_mismatch": "Environment mismatch",
+    "version_not_allowed": "Version not allowed",
+    "module_not_licensed": "Module not licensed",
+    "max_users_exceeded": "Maximum users exceeded",
+    "max_instances_exceeded": "Maximum instances exceeded"
+  },
+  "sync_status": {
+    "ok": "Synced with Portal",
+    "using_cache": "Offline mode (local cache)",
+    "local_file": "Local file (emergency)",
+    "no_portal": "Portal not configured",
+    "portal_unreachable": "Portal unreachable",
+    "cached": "From memory cache",
+    "syncing": "Syncing..."
+  },
+  "fields": {
+    "license_id": "License ID",
+    "customer": "Customer",
+    "expires_at": "Expires at",
+    "maintenance_until": "Maintenance until",
+    "modules": "Enabled modules",
+    "max_users": "Max users",
+    "max_instances": "Max instances",
+    "checksum": "Payload checksum",
+    "last_sync": "Last sync",
+    "sync_status_label": "Sync status",
+    "deployment_type": "Deployment type"
+  },
+  "modules": {
+    "base": "Base Module",
+    "albo": "Public Registry",
+    "delibere": "Resolutions",
+    "determine": "Determinations",
+    "ordinanze": "Ordinances"
+  },
+  "actions": {
+    "sync_now": "Sync now",
+    "refresh": "Refresh",
+    "view_details": "View details",
+    "view_logs": "View logs"
+  },
+  "messages": {
+    "sync_success": "License synced successfully",
+    "sync_failed": "Sync failed: {{error}}",
+    "expires_soon": "License expires in {{days}} days",
+    "maintenance_expires_soon": "Maintenance expires in {{days}} days",
+    "loading": "Loading license information...",
+    "no_license": "No license configured"
+  },
+  "info": {
+    "portal_sync": "Portal Sync",
+    "license_details": "License Details",
+    "validity": "Validity",
+    "entitlements": "Entitlements"
+  },
+  "deployment_types": {
+    "on_prem": "On-Premise",
+    "cloud": "Cloud",
+    "hybrid": "Hybrid"
+  }
+}

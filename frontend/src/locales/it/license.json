@@ -1,0 +1,69 @@
+{
+  "title": "Licenza",
+  "status": {
+    "valid": "Licenza valida",
+    "invalid": "Licenza non valida",
+    "expired": "Licenza scaduta",
+    "missing": "Licenza non trovata",
+    "maintenance_expired": "Manutenzione scaduta",
+    "environment_mismatch": "Ambiente non corrispondente",
+    "version_not_allowed": "Versione non autorizzata",
+    "module_not_licensed": "Modulo non licenziato",
+    "max_users_exceeded": "Numero massimo utenti superato",
+    "max_instances_exceeded": "Numero massimo istanze superato"
+  },
+  "sync_status": {
+    "ok": "Sincronizzato con Portal",
+    "using_cache": "Modalità offline (cache locale)",
+    "local_file": "File locale (emergenza)",
+    "no_portal": "Portal non configurato",
+    "portal_unreachable": "Portal non raggiungibile",
+    "cached": "Da cache in memoria",
+    "syncing": "Sincronizzazione in corso..."
+  },
+  "fields": {
+    "license_id": "ID Licenza",
+    "customer": "Cliente",
+    "expires_at": "Scadenza",
+    "maintenance_until": "Manutenzione fino al",
+    "modules": "Moduli abilitati",
+    "max_users": "Utenti massimi",
+    "max_instances": "Istanze massime",
+    "checksum": "Checksum payload",
+    "last_sync": "Ultima sincronizzazione",
+    "sync_status_label": "Stato sync",
+    "deployment_type": "Tipo deployment"
+  },
+  "modules": {
+    "base": "Modulo Base",
+    "albo": "Albo Pretorio",
+    "delibere": "Delibere",
+    "determine": "Determine",
+    "ordinanze": "Ordinanze"
+  },
+  "actions": {
+    "sync_now": "Sincronizza ora",
+    "refresh": "Aggiorna",
+    "view_details": "Visualizza dettagli",
+    "view_logs": "Visualizza log"
+  },
+  "messages": {
+    "sync_success": "Licenza sincronizzata con successo",
+    "sync_failed": "Sincronizzazione fallita: {{error}}",
+    "expires_soon": "La licenza scadrà tra {{days}} giorni",
+    "maintenance_expires_soon": "La manutenzione scadrà tra {{days}} giorni",
+    "loading": "Caricamento informazioni licenza...",
+    "no_license": "Nessuna licenza configurata"
+  },
+  "info": {
+    "portal_sync": "Sincronizzazione Portal",
+    "license_details": "Dettagli Licenza",
+    "validity": "Validità",
+    "entitlements": "Diritti"
+  },
+  "deployment_types": {
+    "on_prem": "On-Premise",
+    "cloud": "Cloud",
+    "hybrid": "Ibrido"
+  }
+}

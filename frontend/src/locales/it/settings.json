@@ -1,0 +1,119 @@
+{
+  "title": "Impostazioni",
+  "subtitle": "Configura le impostazioni dell'applicazione",
+  "tabs": {
+    "general": "Generale",
+    "users": "Utenti",
+    "license": "Licenza",
+    "advanced": "Avanzate"
+  },
+  "general": {
+    "title": "Impostazioni Generali",
+    "app_name": "Nome applicazione",
+    "language": "Lingua",
+    "theme": "Tema",
+    "timezone": "Fuso orario"
+  },
+  "users": {
+    "title": "Gestione Utenti",
+    "add_user": "Aggiungi utente",
+    "edit_user": "Modifica utente",
+    "remove_user": "Rimuovi utente",
+    "user_role": "Ruolo utente",
+    "no_users": "Nessun utente configurato",
+    "loading_users": "Caricamento utenti...",
+    "columns": {
+      "name": "Nome",
+      "email": "Email",
+      "role": "Ruolo",
+      "status": "Stato",
+      "actions": "Azioni"
+    },
+    "roles": {
+      "app_admin": "Admin Applicazione",
+      "app_user": "Utente Applicazione",
+      "app_viewer": "Visualizzatore"
+    },
+    "messages": {
+      "user_added": "Utente aggiunto con successo",
+      "user_updated": "Utente aggiornato con successo",
+      "user_removed": "Utente rimosso con successo",
+      "operation_failed": "Operazione fallita: {{error}}"
+    }
+  },
+  "permissions": {
+    "roles-tab": "Ruoli",
+    "user-roles-tab": "Ruoli Utente",
+    "audit-tab": "Log Audit",
+    "app-roles": "Ruoli Applicazione",
+    "create-role": "Crea Ruolo",
+    "edit-role": "Modifica Ruolo",
+    "role-id": "ID Ruolo",
+    "role-name": "Nome Ruolo",
+    "description": "Descrizione",
+    "permissions": "Permessi",
+    "can-create": "Può Creare",
+    "can-read": "Può Leggere",
+    "can-update": "Può Modificare",
+    "can-delete": "Può Eliminare",
+    "can-assign": "Può Assegnare",
+    "can-configure": "Può Configurare",
+    "user-roles": "Assegnazioni Ruoli Utente",
+    "user-id": "ID Utente (email)",
+    "assign-role": "Assegna Ruolo",
+    "revoke-role": "Revoca Ruolo",
+    "granted-at": "Assegnato il",
+    "granted-by": "Assegnato da",
+    "no-roles": "Nessun ruolo assegnato",
+    "select-role": "Seleziona Ruolo",
+    "audit-logs": "Log Audit Permessi",
+    "filter-by-user": "Filtra per ID Utente",
+    "timestamp": "Data/Ora",
+    "action": "Azione",
+    "actor": "Attore",
+    "target": "Destinatario",
+    "details": "Dettagli",
+    "no-logs": "Nessun log audit trovato"
+  },
+  "advanced": {
+    "title": "Impostazioni Avanzate",
+    "api_settings": "Impostazioni API",
+    "cache_settings": "Impostazioni cache",
+    "debug_mode": "Modalità debug",
+    "clear_cache": "Svuota cache",
+    "export_config": "Esporta configurazione",
+    "import_config": "Importa configurazione"
+  },
+  "actions": {
+    "save_settings": "Salva impostazioni",
+    "reset_defaults": "Ripristina predefiniti",
+    "cancel_changes": "Annulla modifiche"
+  },
+  "messages": {
+    "settings_saved": "Impostazioni salvate con successo",
+    "settings_reset": "Impostazioni ripristinate ai valori predefiniti",
+    "unsaved_warning": "Hai modifiche non salvate. Continuare?"
+  },
+  "demo": {
+    "title": "Dati di esempio e reset",
+    "subtitle": "Carica dati di prova per tutte le sezioni PrivacyPA, oppure azzera i dati e i documenti del tenant corrente. L'audit trail non viene cancellato.",
+    "seed": "Carica dati di esempio",
+    "seeded": "Dati di esempio caricati o completati.",
+    "reset_all_data": "Azzera tutti i dati",
+    "reset_all_documents": "Azzera tutti i documenti",
+    "reset_data": "Azzera dati",
+    "reset_documents": "Azzera documenti",
+    "reset_section_data": "Azzera i dati di {{section}}",
+    "reset_section_documents": "Azzera i documenti di {{section}}",
+    "reset_done": "Reset completato: {{records}} record, {{files}} file.",
+    "column_section": "Sezione",
+    "column_records": "Record",
+    "column_documents": "Documenti",
+    "column_actions": "Azioni",
+    "audit_note": "Non vengono toccati audit trail, cataloghi globali, regole di conformità e ruoli privacy.",
+    "confirm_title": "Conferma operazione",
+    "confirm_seed": "Caricare o completare i dati di esempio per questo ente? Le sezioni già popolate non vengono duplicate.",
+    "confirm_reset": "Confermi: {{action}}? L'operazione non si può annullare.",
+    "confirm": "Conferma"
+  }
+}

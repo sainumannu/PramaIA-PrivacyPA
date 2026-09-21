@@ -1,0 +1,119 @@
+{
+  "title": "Settings",
+  "subtitle": "Configure application settings",
+  "tabs": {
+    "general": "General",
+    "users": "Users",
+    "license": "License",
+    "advanced": "Advanced"
+  },
+  "general": {
+    "title": "General Settings",
+    "app_name": "Application name",
+    "language": "Language",
+    "theme": "Theme",
+    "timezone": "Timezone"
+  },
+  "users": {
+    "title": "User Management",
+    "add_user": "Add user",
+    "edit_user": "Edit user",
+    "remove_user": "Remove user",
+    "user_role": "User role",
+    "no_users": "No users configured",
+    "loading_users": "Loading users...",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "roles": {
+      "app_admin": "App Admin",
+      "app_user": "App User",
+      "app_viewer": "Viewer"
+    },
+    "messages": {
+      "user_added": "User added successfully",
+      "user_updated": "User updated successfully",
+      "user_removed": "User removed successfully",
+      "operation_failed": "Operation failed: {{error}}"
+    }
+  },
+  "permissions": {
+    "roles-tab": "Roles",
+    "user-roles-tab": "User Roles",
+    "audit-tab": "Audit Logs",
+    "app-roles": "Application Roles",
+    "create-role": "Create Role",
+    "edit-role": "Edit Role",
+    "role-id": "Role ID",
+    "role-name": "Role Name",
+    "description": "Description",
+    "permissions": "Permissions",
+    "can-create": "Can Create",
+    "can-read": "Can Read",
+    "can-update": "Can Update",
+    "can-delete": "Can Delete",
+    "can-assign": "Can Assign",
+    "can-configure": "Can Configure",
+    "user-roles": "User Role Assignments",
+    "user-id": "User ID (email)",
+    "assign-role": "Assign Role",
+    "revoke-role": "Revoke Role",
+    "granted-at": "Granted At",
+    "granted-by": "Granted By",
+    "no-roles": "No roles assigned",
+    "select-role": "Select Role",
+    "audit-logs": "Permission Audit Logs",
+    "filter-by-user": "Filter by User ID",
+    "timestamp": "Timestamp",
+    "action": "Action",
+    "actor": "Actor",
+    "target": "Target",
+    "details": "Details",
+    "no-logs": "No audit logs found"
+  },
+  "advanced": {
+    "title": "Advanced Settings",
+    "api_settings": "API settings",
+    "cache_settings": "Cache settings",
+    "debug_mode": "Debug mode",
+    "clear_cache": "Clear cache",
+    "export_config": "Export configuration",
+    "import_config": "Import configuration"
+  },
+  "actions": {
+    "save_settings": "Save settings",
+    "reset_defaults": "Reset to defaults",
+    "cancel_changes": "Cancel changes"
+  },
+  "messages": {
+    "settings_saved": "Settings saved successfully",
+    "settings_reset": "Settings reset to defaults",
+    "unsaved_warning": "You have unsaved changes. Continue?"
+  },
+  "demo": {
+    "title": "Sample data and reset",
+    "subtitle": "Load sample data for every PrivacyPA section, or clear data and documents for the current tenant. The audit trail is not deleted.",
+    "seed": "Load sample data",
+    "seeded": "Sample data loaded or completed.",
+    "reset_all_data": "Reset all data",
+    "reset_all_documents": "Reset all documents",
+    "reset_data": "Reset data",
+    "reset_documents": "Reset documents",
+    "reset_section_data": "Reset data for {{section}}",
+    "reset_section_documents": "Reset documents for {{section}}",
+    "reset_done": "Reset complete: {{records}} records, {{files}} files.",
+    "column_section": "Section",
+    "column_records": "Records",
+    "column_documents": "Documents",
+    "column_actions": "Actions",
+    "audit_note": "Audit trail, global catalogs, compliance rules and privacy roles are left untouched.",
+    "confirm_title": "Confirm",
+    "confirm_seed": "Load or complete sample data for this organisation? Sections that already have data are not duplicated.",
+    "confirm_reset": "Confirm: {{action}}? This cannot be undone.",
+    "confirm": "Confirm"
+  }
+}
