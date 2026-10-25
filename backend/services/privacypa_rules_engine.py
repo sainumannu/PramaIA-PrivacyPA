@@ -167,7 +167,7 @@ class RulesEngine:
                     continue
                 finding = ComplianceFinding(
                     tenant_id=tenant_id, rule_id=rule.id, rule_code=spec.code, rule_version=rule.version,
-                    severity=rule.severity, condition=condition, entity_type=hit.entity_type, entity_id=hit.entity_id,
+                    severity=hit.severity or rule.severity, condition=condition, entity_type=hit.entity_type, entity_id=hit.entity_id,
                     entity_code=hit.entity_code, processing_activity_id=hit.processing_id, organizational_unit_id=hit.unit_id, fingerprint=key, active_key=key,
                     message=hit.message, params=hit.params, due_date=hit.due_date, status=FindingStatus.OPEN,
                 )

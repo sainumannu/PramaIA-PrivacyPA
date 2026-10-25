@@ -19,7 +19,7 @@ OUTBOX_PREFIXES = (
     "processing_activity.create", "processing_activity.update",
     "dpia.status_change", "contract.", "subprocessor.", "processor_agreement.", "retention_rule.", "task.",
     "privacy_notice.", "data_flow.", "corrective_action.", "data_breach.", "data_subject_request.", "audit_plan.",
-    "training_course.", "authorization.", "dpo_opinion.", "annual_report.", "project.",
+    "training_course.", "authorization.", "dpo_opinion.", "annual_report.", "project.", "external_event.",
 )
 # Campi di new_values copiati nel payload.
 _DATA_KEYS = (

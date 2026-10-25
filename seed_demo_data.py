@@ -344,6 +344,7 @@ async def seed_core(session) -> None:
             purposes=["Sicurezza urbana"],
             legal_basis_codes=["GDPR_6_1_E"],
             data_subject_ids=[cittadini.id] if cittadini else [],
+            data_category_ids=[x.id for x in (nome,) if x],
             next_review_date=TODAY + timedelta(days=20),
         )
         t_hr = await trattamento(
@@ -680,6 +681,7 @@ async def seed_extended(session) -> dict:
     await run("tag_campi", seed_annotations(session))
     await run("dpo", seed_dpo(session))
     await run("webhook", seed_webhooks(session))
+    await run("integrazioni", seed_integrations(session))
     await run("documenti_sezioni", seed_section_documents(session))
     await run("verifiche", seed_findings(session))
     return created
@@ -1070,6 +1072,111 @@ async def seed_dpo(session) -> str | None:
         )
         bits.append(f"relazione {year}")
     return ", ".join(bits) if bits else None
+
+
+# ---------------------------------------------------------------- connettore VideoPA (W1-W3)
+
+VIDEO_CLASS = "Immagini di videosorveglianza"
+SERVICE_ACCOUNT = "svc-videopa"
+
+
+async def seed_integrations(session) -> str | None:
+    """
+    Dati di prova per il connettore VideoPA: l'account di servizio (ruolo INTEGRATION), la categoria delle riprese, cinque trattamenti di
+    videosorveglianza con situazioni diverse per lo snapshot (con e senza DPIA, informativa, responsabile; conservazione a giorni, a mesi,
+    a evento, assente, in conflitto) e alcuni eventi tecnici già ricevuti. Idempotente.
+    """
+    from backend.auth.privacypa_scope import VisibilityScope
+    from backend.services.privacypa_external_event_service import ExternalEventService
+    from backend.services.privacypa_policy_service import PolicyService
+    from backend.models.privacypa_approvals import TenantPolicy
+    from backend.models.privacypa_parties import ProcessorAgreement
+
+    polizia = await _unit(session, "CMD-PL")
+    if not polizia:
+        return "struttura del comando mancante"
+    done = []
+
+    # 1. account di servizio
+    identity = IdentityService(session)
+    if not any(a.role_code == PrivacyRoleCode.INTEGRATION for a in await identity.list_user_assignments(TENANT, SERVICE_ACCOUNT, active_only=True)):
+        await identity.assign_role(TENANT, SERVICE_ACCOUNT, PrivacyRoleCode.INTEGRATION, ACTOR, ScopeType.TENANT)
+        done.append(f"account {SERVICE_ACCOUNT} (INTEGRATION)")
+
+    # 2. categoria delle riprese
+    policy = (await session.execute(select(TenantPolicy).where(TenantPolicy.tenant_id == TENANT))).scalar_one_or_none()
+    stored = (policy.integrations or {}) if policy else {}
+    if stored.get("retention_category") != VIDEO_CLASS:
+        await PolicyService(session).update_integrations(
+            TENANT, ACTOR, {**stored, "retention_category": VIDEO_CLASS}, policy.row_version if policy else 0)
+        done.append("categoria delle riprese")
+
+    # 3. la regola di conservazione già presente sulla videosorveglianza urbana entra nella categoria
+    urbana = await _proc(session, "Videosorveglianza urbana")
+    if urbana:
+        for rule in (await session.execute(select(RetentionRule).where(
+            RetentionRule.tenant_id == TENANT, RetentionRule.processing_activity_id == urbana.id, RetentionRule.deleted_at.is_(None)
+        ))).scalars():
+            if not rule.record_class:
+                rule.record_class = VIDEO_CLASS
+        # un responsabile con atto art. 28 firmato (snapshot con `processors`)
+        aruba = await _party(session, "Aruba S.p.A.")
+        if aruba and not await PartyService(session).list_processors(urbana.id):
+            agreement = ProcessorAgreement(tenant_id=TENANT, party_id=aruba.id, status=AgreementStatus.SIGNED,
+                                           signed_date=TODAY - timedelta(days=200), effective_from=TODAY - timedelta(days=200),
+                                           expiry_date=TODAY + timedelta(days=500))
+            session.add(agreement)
+            await session.flush()
+            await PartyService(session).set_processors(urbana.id, [{"party_id": aruba.id, "processor_agreement_id": agreement.id}])
+            done.append("responsabile con atto art. 28 sulla videosorveglianza urbana")
+
+    # 4. trattamenti con situazioni diverse
+    cittadini = await _by_code(session, DataSubjectCategoryCatalog, None, "CITTADINI")
+    nome = await _by_code(session, DataCategoryCatalog, None, "NOME_COGNOME")
+    proc = ProcessingService(session)
+    retention = RetentionService(session)
+    scenarios = [
+        # titolo, stato, [(unità, valore, classe)] -> regole
+        ("Videosorveglianza edifici comunali", ProcessingStatus.APPROVED, [(RetentionUnit.MONTHS, 1, VIDEO_CLASS)]),
+        ("Lettura targhe varchi ZTL", ProcessingStatus.APPROVED, [(RetentionUnit.EVENT_BASED, None, VIDEO_CLASS)]),
+        ("Videosorveglianza scuole", ProcessingStatus.APPROVED, [(RetentionUnit.DAYS, 7, VIDEO_CLASS), (RetentionUnit.DAYS, 30, VIDEO_CLASS)]),
+        ("Fototrappole ambientali", ProcessingStatus.DRAFT, []),
+    ]
+    for title, status_, rules in scenarios:
+        if await _proc(session, title):
+            continue
+        act = await proc.create_activity(
+            TENANT, ACTOR, title=title, organizational_unit_id=polizia.id,
+            purpose_summary="Trattamento di prova per il connettore VideoPA.", purposes=["Sicurezza urbana"],
+            legal_basis_codes=["GDPR_6_1_E"], data_subject_ids=[cittadini.id] if cittadini else [],
+            data_category_ids=[x.id for x in (nome,) if x],
+        )
+        if status_ != ProcessingStatus.DRAFT:
+            await _advance(proc, TENANT, act.id, status_)
+        for unit, value, klass in rules:
+            await retention.create(
+                TENANT, ACTOR, act.id, retention_unit=unit, retention_value=value, record_class=klass,
+                retention_criterion="Conservazione delle riprese (dato di prova).", disposal_method=DisposalMethod.DELETION,
+                start_trigger="ripresa dell'immagine",
+            )
+        done.append(f"trattamento «{title}»")
+
+    # 5. eventi tecnici già ricevuti (id fissi: rilanciando il seed non si duplicano)
+    events = []
+    for n, (title, kind) in enumerate([("Videosorveglianza urbana", "AudioEnabled"), ("Videosorveglianza urbana", "CameraMoved"),
+                                       ("Videosorveglianza urbana", "CameraMoved"), ("Videosorveglianza scuole", "AnalyticsEnabled")]):
+        target = await _proc(session, title)
+        if target:
+            events.append({"source": "VIDEOPA", "event_id": f"demo-evt-{n}", "type": kind, "processing_id": target.id,
+                           "occurred_at": (datetime.utcnow() - timedelta(hours=n + 1)).isoformat(), "subject_ref": f"CAM-{n + 1:04d}",
+                           "summary": f"Evento di prova {kind}", "link": f"https://videopa.example/cameras/CAM-{n + 1:04d}"})
+    events.append({"source": "VIDEOPA", "event_id": "demo-evt-unmatched", "type": "CameraInstalled", "processing_id": "non-esiste",
+                   "occurred_at": datetime.utcnow().isoformat(), "subject_ref": "CAM-0099"})
+    results = await ExternalEventService(session).ingest(TENANT, SERVICE_ACCOUNT, VisibilityScope(user_id=SERVICE_ACCOUNT, unit_ids=None), events)
+    accepted = sum(1 for r in results if r["outcome"] in ("ACCEPTED", "UNMATCHED"))
+    if accepted:
+        done.append(f"{accepted} eventi ricevuti da VideoPA")
+    return ", ".join(done) or None
 
 
 async def seed_webhooks(session) -> str | None:

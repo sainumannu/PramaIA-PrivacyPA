@@ -30,6 +30,10 @@ def _app(rate=None, setup_rate=None, docs=False) -> FastAPI:
         return {"ok": True}
 
     app.include_router(health_router.router)
+
+    @app.get("/{full_path:path}")
+    async def frontend(full_path: str):
+        return "<html></html>"
     app.add_middleware(RateLimitMiddleware, default_per_minute=rate, setup_per_minute=setup_rate)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
@@ -62,6 +66,28 @@ async def test_swagger_ui_is_not_blocked_by_the_api_csp():
         r = await c.get("/docs")
         assert r.status_code == 200
         assert "content-security-policy" not in r.headers
+
+
+@pytest.mark.asyncio
+async def test_frontend_csp_allows_its_own_script_and_style_but_not_the_api_wildcard():
+    """
+    Il pacchetto installer serve il frontend dalla stessa porta (backend/main.py, fuori da /api e /health):
+    la CSP rigida dell'API (`default-src 'none'`) lo bloccherebbe (script, stile, font, persino le sue
+    stesse chiamate). Le rotte non-API devono avere una CSP che ammette solo sé stesse (niente inline
+    script, niente sorgenti esterne non elencate), non "tutto aperto".
+    """
+    async with _client(_app()) as c:
+        page = await c.get("/")
+        csp = page.headers["content-security-policy"]
+        assert "script-src 'self'" in csp and "'unsafe-inline'" not in csp.split("style-src")[0]
+        assert "connect-src 'self'" in csp and "frame-ancestors 'none'" in csp
+        assert "fonts.googleapis.com" in csp and "fonts.gstatic.com" in csp
+
+        api = await c.get("/api/ping")
+        assert api.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+
+        health = await c.get("/health/live")
+        assert health.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
 
 
 @pytest.mark.asyncio

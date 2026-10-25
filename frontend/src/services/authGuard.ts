@@ -109,10 +109,55 @@ export const authGuard = {
     const portalUrl = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
     window.location.href = portalUrl;
   },
+
+  /**
+   * Rimuove la sessione locale senza reindirizzare (usato prima di
+   * redirectToPortal, per non lasciare token scaduti/invalidi in localStorage).
+   */
+  clearSession(): void {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
 };
 
 // Inizializza subito all'import
 authGuard.init();
+
+/**
+ * Mostra un messaggio a schermo per qualche secondo e poi reindirizza al Portal.
+ * Da usare per fallimenti di autenticazione involontari (token assente/scaduto/invalido),
+ * mai per il logout volontario dell'utente.
+ */
+export function redirectToPortal(reason: string, delayMs = 5000): void {
+  if (typeof window === 'undefined') return;
+  const portalUrl = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
+  if (document.getElementById('pramaia-auth-redirect-overlay')) return;
+  try {
+    const overlay = document.createElement('div');
+    overlay.id = 'pramaia-auth-redirect-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,0.92);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Roboto,Arial,sans-serif;text-align:center;padding:24px;';
+    const seconds = Math.ceil(delayMs / 1000);
+    overlay.innerHTML = `
+      <div style="max-width:420px;">
+        <div style="font-size:18px;font-weight:600;margin-bottom:12px;">Sessione non valida</div>
+        <div style="font-size:14px;opacity:0.85;margin-bottom:16px;">${reason}</div>
+        <div style="font-size:13px;opacity:0.7;">Verrai reindirizzato al Portal in <span id="pramaia-auth-redirect-countdown">${seconds}</span>s...</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    let remaining = seconds;
+    const countdownEl = overlay.querySelector('#pramaia-auth-redirect-countdown');
+    const interval = setInterval(() => {
+      remaining -= 1;
+      if (countdownEl) countdownEl.textContent = String(Math.max(remaining, 0));
+    }, 1000);
+    setTimeout(() => {
+      clearInterval(interval);
+      window.location.href = portalUrl;
+    }, delayMs);
+  } catch {
+    window.location.href = portalUrl;
+  }
+}
 
 /**
  * Verifica se l'utente corrente può accedere alle impostazioni dell'app.

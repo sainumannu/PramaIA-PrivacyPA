@@ -110,5 +110,7 @@ class TenantPolicy(Base):
     deadlines: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Regole per livello di riservatezza e step-up (§134-§136): vedi backend/auth/privacypa_confidentiality.py
     confidentiality: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Parametri dei connettori verso sistemi esterni: {"retention_category": "IMMAGINI"} (vedi privacypa_integration_service.py).
+    integrations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     updated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

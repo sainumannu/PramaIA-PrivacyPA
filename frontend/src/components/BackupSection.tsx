@@ -37,6 +37,7 @@ import {
   Refresh as RefreshIcon,
   Schedule as ScheduleIcon,
   Warning as WarningIcon,
+  FactCheck as VerifyIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/apiClient';
 import { authGuard } from '../services/authGuard';
@@ -47,6 +48,8 @@ interface BackupConfig {
   schedule_hour: number;
   retention_count: number;
   last_backup_at?: string | null;
+  encryption?: boolean;
+  offsite?: boolean;
 }
 
 interface BackupFile {
@@ -54,6 +57,16 @@ interface BackupFile {
   size: number;
   created_at: string;
   type: string;
+  encrypted?: boolean;
+  documents_filename?: string | null;
+}
+
+interface VerifyResult {
+  filename: string;
+  ok: boolean;
+  checks: { name: string; ok: boolean; detail: string }[];
+  warnings: string[];
+  documents_filename?: string | null;
 }
 
 interface BackupLog {
@@ -84,6 +97,8 @@ export const BackupSection: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
   const [restoreDialog, setRestoreDialog] = useState<{ open: boolean; filename?: string }>({ open: false });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; filename?: string }>({ open: false });
 
@@ -145,6 +160,20 @@ export const BackupSection: React.FC = () => {
       setError(err.message || 'Failed to create backup');
     } finally {
       setCreating(false);
+    }
+  };
+
+  // Prova di ripristino: decifra e controlla il backup in una copia temporanea, senza toccare il database in uso.
+  const handleVerify = async (filename: string) => {
+    setVerifying(filename);
+    setVerifyResult(null);
+    try {
+      setVerifyResult(await apiClient.post<VerifyResult>('/api/backup/verify', { filename }));
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to verify backup');
+    } finally {
+      setVerifying(null);
     }
   };
 
@@ -323,6 +352,17 @@ export const BackupSection: React.FC = () => {
           <Alert severity="info">No backups available</Alert>
         ) : (
           <TableContainer>
+            {verifyResult && (
+              <Alert severity={verifyResult.ok ? (verifyResult.warnings.length ? 'warning' : 'success') : 'error'} sx={{ mb: 2 }} onClose={() => setVerifyResult(null)}>
+                <strong>{verifyResult.filename}: {verifyResult.ok ? 'verification passed' : 'verification FAILED'}</strong>
+                {verifyResult.checks.map((c) => (
+                  <div key={c.name}>{c.ok ? '✓' : '✗'} {c.name}: {c.detail}</div>
+                ))}
+                {verifyResult.warnings.map((w) => (
+                  <div key={w}>⚠ {w}</div>
+                ))}
+              </Alert>
+            )}
             <Table>
               <TableHead>
                 <TableRow>
@@ -335,7 +375,11 @@ export const BackupSection: React.FC = () => {
               <TableBody>
                 {backups.map((backup) => (
                   <TableRow key={backup.filename}>
-                    <TableCell>{backup.filename}</TableCell>
+                    <TableCell>
+                      {backup.filename}
+                      {backup.encrypted && <Chip size="small" color="success" label="Encrypted" sx={{ ml: 1 }} />}
+                      {backup.documents_filename && <Chip size="small" label="+ documents" sx={{ ml: 1 }} />}
+                    </TableCell>
                     <TableCell>{formatBytes(backup.size)}</TableCell>
                     <TableCell>{new Date(backup.created_at).toLocaleString()}</TableCell>
                     <TableCell align="right">
@@ -347,6 +391,18 @@ export const BackupSection: React.FC = () => {
                         >
                           <DownloadIcon />
                         </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Verify (restore test on a temporary copy)">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleVerify(backup.filename)}
+                            disabled={verifying === backup.filename}
+                            color="info"
+                          >
+                            {verifying === backup.filename ? <CircularProgress size={18} /> : <VerifyIcon />}
+                          </IconButton>
+                        </span>
                       </Tooltip>
                       <Tooltip title="Restore">
                         <IconButton

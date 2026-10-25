@@ -5,6 +5,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
 
+from backend.services import portal_secret_sync
+
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
@@ -69,6 +71,11 @@ def decode_portal_token(token: str) -> TokenPayload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except jwt.InvalidIssuerError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer")
+    except jwt.InvalidSignatureError as e:
+        # Può voler dire che il Portal ha cambiato JWT secret: l'app se lo riprende in
+        # background (portal_secret_sync.py) e il prossimo login passa.
+        portal_secret_sync.trigger_background_resync()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
     except jwt.PyJWTError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
 

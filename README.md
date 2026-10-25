@@ -71,6 +71,15 @@ Apri il browser su `http://localhost:3003` e:
 
 ---
 
+### 4. Installazione su un server Windows (produzione)
+
+Per installare come servizio Windows su una macchina di produzione (senza Python/Node.js installati),
+c'è un installer `.exe` (PyInstaller + NSSM + Inno Setup, stesso schema delle altre app PramaIA):
+vedi `installer/INSTALLER_README.md`. Anche lì il Setup Wizard parte da solo, nel browser, appena
+l'installazione finisce.
+
+---
+
 ## 📁 Struttura progetto
 
 ```

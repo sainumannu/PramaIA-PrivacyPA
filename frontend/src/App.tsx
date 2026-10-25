@@ -1,7 +1,8 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
-import { authGuard } from './services/authGuard';
+import { authGuard, redirectToPortal } from './services/authGuard';
+import { loadConfig } from './services/runtimeConfig';
 import HomePage from './pages/HomePage';
 import SettingsPage from './pages/SettingsPage';
 import SetupWizardPage from './pages/SetupWizardPage';
@@ -31,16 +32,14 @@ import DpiaPage from './pages/DpiaPage';
 import TransfersPage from './pages/TransfersPage';
 import RisksPage from './pages/RisksPage';
 import ErrorBoundary from './components/ErrorBoundary';
-import axios from 'axios';
 
 // Inizializza i18n
 import './i18n/i18n';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (!authGuard.isAuthenticated()) {
-    const portalUrl = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
-    // Redirect al Portal se non autenticato
-    window.location.href = portalUrl;
+    // Sessione assente/non valida: mostra un messaggio prima di reindirizzare al Portal
+    redirectToPortal('Sessione non trovata o non valida. Effettua nuovamente l\'accesso dal Portal.');
     return null;
   }
   return <>{children}</>;
@@ -59,39 +58,28 @@ const LoadingFallback = () => (
 );
 
 export default function App() {
-  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  // URL del Portal letto da /api/config prima delle rotte: serve al redirect
+  // di login. Il wizard di setup resta raggiungibile esplicitamente su /setup
+  // (non più come schermata che intercetta l'intera app): gli endpoint che
+  // scrive restano protetti lato backend (solo localhost, vedi
+  // backend/routers/setup_router.py) finché non verrà rimosso in un secondo
+  // momento, a favore della sola configurazione a tempo di installazione.
+  const [configReady, setConfigReady] = useState(false);
 
   useEffect(() => {
-    checkSetup();
+    loadConfig().finally(() => setConfigReady(true));
   }, []);
 
-  const checkSetup = async () => {
-    try {
-      const response = await axios.get('/api/setup/check');
-      setIsConfigured(response.data.is_configured);
-    } catch (err) {
-      console.error('Errore verifica setup:', err);
-      // In caso di errore, assumiamo che il setup sia necessario
-      setIsConfigured(false);
-    }
-  };
-
-  // Loading state
-  if (isConfigured === null) {
+  if (!configReady) {
     return <LoadingFallback />;
   }
 
-  // Setup wizard se app non configurata
-  if (!isConfigured) {
-    return <SetupWizardPage />;
-  }
-
-  // App normale se configurata
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
         <BrowserRouter>
           <Routes>
+            <Route path="/setup" element={<SetupWizardPage />} />
             <Route
               path="/"
               element={

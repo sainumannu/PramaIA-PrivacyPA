@@ -211,6 +211,49 @@ async def put_deadlines_policy(
     return {"row_version": policy.row_version, "values": await get_deadlines(db, tenant_id)}
 
 
+class IntegrationsIn(BaseModel):
+    # Categoria di dati (codice del catalogo) o classe documentale che identifica le riprese; vuoto = non configurata.
+    retention_category: str | None = Field(None, max_length=100)
+    # Mesi di conservazione degli eventi ricevuti da sistemi esterni (vuoto = 24).
+    external_events_retention_months: int | None = Field(None, ge=1, le=120)
+
+
+@router.get("/policy/integrations")
+async def get_integrations_policy(
+    response: Response,
+    tenant_id: str = Depends(require_tenant),
+    user: TokenPayload = Depends(require_permission("policy.administer")),
+    db: AsyncSession = Depends(get_db),
+):
+    from backend.services.privacypa_integration_service import get_integrations
+
+    policy = await get_policy(db, tenant_id)
+    version = policy.row_version if policy else 0
+    response.headers["ETag"] = f'"{version}"'
+    return {"row_version": version, "values": await get_integrations(db, tenant_id)}
+
+
+@router.put("/policy/integrations")
+async def put_integrations_policy(
+    body: IntegrationsIn,
+    response: Response,
+    tenant_id: str = Depends(require_tenant),
+    version: int = Depends(require_if_match),
+    user: TokenPayload = Depends(require_permission("policy.administer")),
+    db: AsyncSession = Depends(get_db),
+):
+    from backend.services.privacypa_integration_service import get_integrations
+
+    try:
+        policy = await PolicyService(db).update_integrations(tenant_id, user.sub or user.email, body.model_dump(), version)
+    except PolicyConflict as e:
+        raise _conflict(e)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    response.headers["ETag"] = f'"{policy.row_version}"'
+    return {"row_version": policy.row_version, "values": await get_integrations(db, tenant_id)}
+
+
 def _confidentiality_payload(policy) -> dict:
     return {
         "row_version": policy.row_version if policy else 0,

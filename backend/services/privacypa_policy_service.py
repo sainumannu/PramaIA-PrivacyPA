@@ -105,6 +105,20 @@ class PolicyService:
         )
         return policy
 
+    async def update_integrations(self, tenant_id: str, actor: str, values: dict, version: int) -> TenantPolicy:
+        """Parametri dei connettori (categoria di dati che identifica le riprese di videosorveglianza, decisione A)."""
+        from backend.services.privacypa_integration_service import get_integrations, validate_integrations
+
+        clean = validate_integrations(values)
+        policy = await self._locked(tenant_id, version)
+        old = await get_integrations(self.db, tenant_id)
+        policy = await self._save(tenant_id, policy, actor, integrations=clean)
+        await self.audit.log(
+            tenant_id, "tenant_policy", "update_integrations", event_type="policy.integrations.updated", entity_id=tenant_id,
+            actor_user_id=actor, old_values={"integrations": old}, new_values={"integrations": clean},
+        )
+        return policy
+
     async def update_segregation(
         self, tenant_id: str, actor: str, rules: dict[str, bool], version: int
     ) -> TenantPolicy:

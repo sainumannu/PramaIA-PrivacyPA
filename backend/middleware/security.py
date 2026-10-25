@@ -18,6 +18,16 @@ from backend.utils.request_context import request_id_var
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+# CSP per le risposte JSON (§55.6): nessun contenuto va eseguito o mostrato, quindi si blocca tutto.
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+# CSP per il frontend servito dalla stessa porta (pacchetto installer, main.py): il bundle React,
+# i font di Google e le chiamate stesse origine restano ammessi; nient'altro (§55.6 applicato al
+# contesto browser: niente inline script, niente sorgenti esterne non elencate).
+_FRONTEND_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -44,7 +54,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         headers.setdefault("Referrer-Policy", "no-referrer")
         headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if not request.url.path.startswith(_DOCS_PATHS):
-            headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+            is_api = request.url.path.startswith(("/api", "/health"))
+            headers.setdefault("Content-Security-Policy", _API_CSP if is_api else _FRONTEND_CSP)
         if request.url.path.startswith("/api"):
             headers.setdefault("Cache-Control", "no-store")
         forwarded_https = request.headers.get("X-Forwarded-Proto", "").lower() == "https"

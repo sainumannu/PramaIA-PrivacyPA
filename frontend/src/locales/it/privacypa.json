@@ -412,7 +412,8 @@
       "RTD": "RTD",
       "OPERATOR": "Operatore",
       "AUDITOR": "Auditor",
-      "READ_ONLY": "Sola lettura"
+      "READ_ONLY": "Sola lettura",
+      "INTEGRATION": "Integrazione (account di servizio)"
     },
     "modules": {
       "processing": "Registro dei trattamenti",
@@ -1080,7 +1081,8 @@
         "RTD": "RTD",
         "OPERATOR": "Operatore",
         "AUDITOR": "Auditor",
-        "READ_ONLY": "Sola lettura"
+        "READ_ONLY": "Sola lettura",
+        "INTEGRATION": "Integrazione (account di servizio)"
       },
       "opinionEntity": {
         "processing_activity": "Trattamento",

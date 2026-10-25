@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.models.privacypa_annotations import CustomFieldDefinition, CustomFieldValue
+from backend.models.privacypa_external_events import ExternalEvent, ExternalEventStatus
 from backend.models.privacypa_assessments import DpiaStatus, InternationalTransfer, TransferLink
 from backend.models.privacypa_assets import Asset, AssetLifecycle, ProcessingAsset
 from backend.models.privacypa_audit import AuditLog
@@ -57,6 +58,7 @@ from backend.models.privacypa_tasks import PrivacyTask, TaskPriority, TaskSource
 from backend.services.privacypa_annotation_service import load_refs
 from backend.services.privacypa_document_service import DocumentService
 from backend.services.privacypa_dpia_service import DpiaService
+from backend.services.privacypa_external_event_service import EVENT_SEVERITY
 from backend.services.privacypa_task_service import TaskService
 
 _LIVE = (ProcessingStatus.APPROVED, ProcessingStatus.ACTIVE)
@@ -94,6 +96,7 @@ class Hit:
     subject: str = ""                 # distingue più violazioni sulla stessa entità
     due_date: date | None = None
     params: dict = field(default_factory=dict)
+    severity: Severity | None = None  # se assente, quella della regola
 
 
 class Context:
@@ -736,6 +739,52 @@ async def _dpia_review_due(ctx: Context, params: dict) -> list[Hit]:
     ]
 
 
+# ---------------------------------------------------------------- eventi da sistemi esterni (connettore VideoPA)
+
+async def _external_change_pending(ctx: Context, params: dict) -> list[Hit]:
+    """Eventi tecnici ricevuti e non ancora rivisti, accorpati per trattamento e tipo. Non stabilisce alcun impatto: chiede una revisione."""
+    events = list((await ctx.db.execute(select(ExternalEvent).where(
+        ExternalEvent.tenant_id == ctx.tenant_id, ExternalEvent.status == ExternalEventStatus.PENDING,
+        ExternalEvent.processing_activity_id.is_not(None)))).scalars())
+    if not events:
+        return []
+    activities = {a.id: a for a in (await ctx.db.execute(select(ProcessingActivity).where(
+        ProcessingActivity.tenant_id == ctx.tenant_id, ProcessingActivity.deleted_at.is_(None),
+        ProcessingActivity.id.in_({e.processing_activity_id for e in events})))).scalars()}
+    groups: dict[tuple[str, str, str], list[ExternalEvent]] = {}
+    for e in events:
+        activity = activities.get(e.processing_activity_id)
+        if activity is None:
+            continue
+        # Una revisione registrata dopo il giorno dell'evento lo chiude; lo stesso giorno no (si archivia con una nota).
+        if activity.last_review_date and activity.last_review_date > e.occurred_at.date():
+            continue
+        groups.setdefault((e.processing_activity_id, e.source, e.event_type), []).append(e)
+    hits = []
+    for (pid, source, kind), group in groups.items():
+        activity, count = activities[pid], len(group)
+        last = max(e.occurred_at for e in group)
+        what = "1 evento" if count == 1 else f"{count} eventi"
+        hits.append(Hit(
+            "processing_activity", pid, f"Da {source}: {what} «{kind}» sul trattamento {activity.code} da rivedere",
+            entity_code=activity.code, processing_id=pid, subject=f"{source}:{kind}", severity=EVENT_SEVERITY.get(kind),
+            params={"processing": activity.code, "source": source, "type": kind, "events": count, "last_event_at": last.isoformat()},
+        ))
+    return hits
+
+
+async def _create_external_change_task(ctx: Context, hit: Hit) -> None:
+    """Un task «Rivedere modifica tecnica», alla struttura del trattamento e al referente privacy (se indicato), a prescindere dalla gravità."""
+    activity = await ctx.db.get(ProcessingActivity, hit.processing_id)
+    await TaskService(ctx.db).create(
+        ctx.tenant_id, "system", f"Rivedere modifica tecnica da {hit.params['source']}: {hit.params['type']}",
+        description=hit.message, source_type=TaskSourceType.PROCESSING, source_id=activity.id,
+        assigned_unit_id=activity.organizational_unit_id, assigned_user_id=activity.privacy_referent_user_id,
+        priority=TaskPriority.HIGH if hit.severity == Severity.HIGH else TaskPriority.MEDIUM, status=TaskStatus.OPEN,
+    )
+    ctx._cache.pop("tasks", None)
+
+
 # ---------------------------------------------------------------- registro
 
 _H, _M, _L = Severity.HIGH, Severity.MEDIUM, Severity.LOW
@@ -817,6 +866,11 @@ RULES: tuple[RuleSpec, ...] = (
              "Documento la cui versione corrente scade entro {horizon_days} giorni o è già scaduta.", _L, _document_expiring, {"horizon_days": 30}),
     RuleSpec("DPIA_REVIEW_DUE", "DPIA da rivedere", "La data di revisione di una DPIA approvata è arrivata (§28).",
              "DPIA approvata o da rivedere con data di prossima revisione uguale o precedente a oggi.", _M, _dpia_review_due),
+    RuleSpec("EXTERNAL_CHANGE_REVIEW_PENDING", "Modifica tecnica da un sistema esterno da rivedere",
+             "Un sistema esterno (es. VideoPA) ha comunicato una modifica tecnica che può incidere sul trattamento. "
+             "PrivacyPA non valuta l'impatto e non modifica il trattamento: chiede una revisione.",
+             "Evento tecnico ricevuto da un sistema esterno per un trattamento, non archiviato e non seguito da una revisione del trattamento.",
+             _M, _external_change_pending, {}, _create_external_change_task),
     RuleSpec("CUSTOM_FIELD_REQUIRED_MISSING", "Campo custom obbligatorio non compilato", "Un elemento non ha il valore di un campo custom obbligatorio (§77).",
              "Elemento di un tipo con un campo custom attivo e obbligatorio, privo del suo valore.", _L, _custom_field_missing),
 )

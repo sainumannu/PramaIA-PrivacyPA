@@ -1,3 +1,5 @@
+> **Aggiornamento:** il sistema di backup è stato riscritto (asincrono, cifratura, copia esterna, verifica di ripristino, archivio dei documenti). Questa guida descrive il template originale: per la procedura corrente vedere `RUNBOOK_RIPRISTINO.md`.
+
 # Database Backup System
 
 This document describes the database backup and restore system integrated into the PramaIA AppTemplate.

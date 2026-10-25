@@ -2,36 +2,39 @@ import asyncio
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from backend.db.database import engine
-from backend.db.init_db import init_database
-from backend.db.seed_privacypa import seed_privacypa_foundations
-from backend.routers import example_router, settings_router, license_router, permissions_router, setup_router, backup_router
-from backend.routers import privacypa_organization_router, privacypa_identity_router, privacypa_catalog_router
-from backend.routers import privacypa_processing_router
-from backend.routers import privacypa_asset_router, privacypa_party_router
-from backend.routers import privacypa_document_router, privacypa_task_router, privacypa_ops_router
-from backend.routers import privacypa_dpia_router, privacypa_transfer_router, privacypa_risk_router
-from backend.services.license_service import LicenseService
-from backend.services.privacypa_webhook_service import run_worker
-from backend.services.backup_scheduler import start_backup_scheduler, stop_backup_scheduler
-from backend.utils.logging import setup_logging, get_logger
-from backend.middleware import LoggingMiddleware
-from backend.middleware.security import RateLimitMiddleware, RequestContextMiddleware, SecurityHeadersMiddleware
-from backend.routers import health_router, privacypa_import_router
-from backend.routers import privacypa_approval_router, privacypa_policy_router
-from backend.routers import privacypa_retention_router, privacypa_supply_router, privacypa_findings_router
-from backend.routers import privacypa_outbox_router, privacypa_export_router
-from backend.routers import privacypa_notice_router, privacypa_dataflow_router, privacypa_workflow_router
-from backend.routers import privacypa_people_router, privacypa_dpo_router, privacypa_project_router, privacypa_annotation_router, privacypa_query_router, privacypa_webhook_router
-from backend.middleware.idempotency import IdempotencyMiddleware
-from backend.db.database import AsyncSessionLocal
-from backend.api_errors import register_error_handlers
-
+# .env va caricato prima di qualsiasi import del backend: database.py e
+# portal_jwt.py leggono DATABASE_URL e PRAMAIA_JWT_SECRET al momento dell'import.
 load_dotenv()
+
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+from backend.db.database import engine  # noqa: E402
+from backend.db.init_db import init_database  # noqa: E402
+from backend.db.seed_privacypa import seed_privacypa_foundations  # noqa: E402
+from backend.routers import example_router, settings_router, license_router, permissions_router, setup_router, backup_router  # noqa: E402
+from backend.routers import privacypa_organization_router, privacypa_identity_router, privacypa_catalog_router  # noqa: E402
+from backend.routers import privacypa_processing_router  # noqa: E402
+from backend.routers import privacypa_asset_router, privacypa_party_router  # noqa: E402
+from backend.routers import privacypa_document_router, privacypa_task_router, privacypa_ops_router  # noqa: E402
+from backend.routers import privacypa_dpia_router, privacypa_transfer_router, privacypa_risk_router  # noqa: E402
+from backend.services.license_service import LicenseService  # noqa: E402
+from backend.services.privacypa_webhook_service import run_worker  # noqa: E402
+from backend.services.backup_scheduler import start_backup_scheduler, stop_backup_scheduler  # noqa: E402
+from backend.utils.logging import setup_logging, get_logger  # noqa: E402
+from backend.middleware import LoggingMiddleware  # noqa: E402
+from backend.middleware.security import RateLimitMiddleware, RequestContextMiddleware, SecurityHeadersMiddleware  # noqa: E402
+from backend.routers import health_router, privacypa_import_router  # noqa: E402
+from backend.routers import privacypa_approval_router, privacypa_policy_router  # noqa: E402
+from backend.routers import privacypa_retention_router, privacypa_supply_router, privacypa_findings_router  # noqa: E402
+from backend.routers import privacypa_outbox_router, privacypa_export_router  # noqa: E402
+from backend.routers import privacypa_notice_router, privacypa_dataflow_router, privacypa_workflow_router  # noqa: E402
+from backend.routers import privacypa_people_router, privacypa_dpo_router, privacypa_project_router, privacypa_annotation_router, privacypa_query_router, privacypa_webhook_router, privacypa_integration_router  # noqa: E402
+from backend.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
+from backend.db.database import AsyncSessionLocal  # noqa: E402
+from backend.api_errors import register_error_handlers  # noqa: E402
 
 # Initialize logging FIRST
 setup_logging()
@@ -104,10 +107,22 @@ async def lifespan(app: FastAPI):
 # Swagger/OpenAPI esposti solo su richiesta esplicita (§89): default chiuso.
 _docs_enabled = os.getenv("ENABLE_API_DOCS", "false").lower() == "true"
 
+
+def _read_app_version(default: str) -> str:
+    """Legge version.txt (scritto da build-release.ps1 a ogni build — sempre
+    sovrascritto, a differenza di .env che viene preservato tra un
+    aggiornamento e l'altro). Assente in sviluppo: resta il default."""
+    try:
+        with open("version.txt", "r", encoding="utf-8") as f:
+            return f.read().strip() or default
+    except OSError:
+        return default
+
+
 app = FastAPI(
     title=APP_NAME,
     description="Gestione Privacy e GDPR PramaIA",
-    version="1.0.0",
+    version=_read_app_version("1.0.0"),
     lifespan=lifespan,
     docs_url="/docs" if _docs_enabled else None,
     redoc_url="/redoc" if _docs_enabled else None,
@@ -169,8 +184,73 @@ app.include_router(privacypa_project_router.router)
 app.include_router(privacypa_annotation_router.router)
 app.include_router(privacypa_query_router.router)
 app.include_router(privacypa_webhook_router.router)
+app.include_router(privacypa_integration_router.router)
+
+
+@app.get("/api/config")
+async def get_frontend_config():
+    """Config pubblica per il frontend (PORTAL_URL dal .env, scritto
+    dall'installer — non dal bundle React, che non può leggere l'ambiente
+    del backend a tempo di build). PrivacyManager non ha una modalità di
+    accesso locale (niente backend/auth/local_auth.py): solo portal_url."""
+    return {
+        "portal_url": os.getenv("PORTAL_URL", ""),
+    }
 
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "PramaIA-PrivacyManager"}
+    return {"status": "ok", "service": "PramaIA-PrivacyManager", "version": app.version}
+
+
+# ----------------------------------------------------------------------------
+# Frontend statico (build di produzione): attivo solo se la cartella esiste.
+# In sviluppo il frontend gira separatamente (CRA dev server su :3003), quindi
+# qui non c'è nulla e questo blocco resta inattivo. Nel pacchetto installer
+# (vedi installer/) il build React viene incluso accanto all'eseguibile e
+# questa route lo serve, con fallback a index.html per il routing lato client.
+# Registrata per ultima: tutte le rotte API/health sopra hanno sempre la precedenza
+# (Starlette instrada nell'ordine di registrazione, non per specificità).
+# ----------------------------------------------------------------------------
+def _resource_path(*parts: str) -> str:
+    import sys
+
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__ + "/.."))
+    return os.path.join(base, *parts)
+
+
+_FRONTEND_BUILD_DIR = _resource_path("frontend", "build")
+
+if os.path.isdir(_FRONTEND_BUILD_DIR):
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount(
+        "/static",
+        StaticFiles(directory=os.path.join(_FRONTEND_BUILD_DIR, "static")),
+        name="frontend-static-assets",
+    )
+
+    # OP08 (RICHIESTE_PLATFORM.md): realpath() + controllo di contenimento, altrimenti
+    # "..%2f.env" (decodificato da uvicorn in "../.env") uscirebbe dalla cartella del
+    # frontend e servirebbe il .env con PRAMAIA_JWT_SECRET senza autenticazione. "+ os.sep"
+    # evita il falso positivo di una cartella sorella con lo stesso prefisso (es.
+    # "build-evil" "contiene" startswith("build") senza esserlo).
+    _FRONTEND_BUILD_ROOT = os.path.realpath(_FRONTEND_BUILD_DIR)
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path.startswith("health/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        candidate = os.path.realpath(os.path.join(_FRONTEND_BUILD_ROOT, full_path))
+        if (
+            full_path
+            and candidate.startswith(_FRONTEND_BUILD_ROOT + os.sep)
+            and os.path.isfile(candidate)
+        ):
+            return FileResponse(candidate)
+        return FileResponse(
+            os.path.join(_FRONTEND_BUILD_ROOT, "index.html"),
+            headers={"Cache-Control": "no-cache"},
+        )

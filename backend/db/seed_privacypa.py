@@ -35,6 +35,7 @@ _ROLE_CATALOG = [
     (PrivacyRoleCode.OPERATOR, "Operatore", "Operatore con permessi operativi di base."),
     (PrivacyRoleCode.AUDITOR, "Auditor", "Accesso di sola verifica per finalità di audit."),
     (PrivacyRoleCode.READ_ONLY, "Sola lettura", "Accesso in sola lettura."),
+    (PrivacyRoleCode.INTEGRATION, "Integrazione", "Account di servizio di un sistema esterno: legge lo snapshot dei trattamenti e invia eventi."),
 ]
 
 _LEGAL_BASIS_CATALOG = [

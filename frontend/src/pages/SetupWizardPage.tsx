@@ -30,6 +30,11 @@ interface SetupData {
   database_url: string;
 }
 
+interface SetupStatus {
+  is_configured: boolean;
+  has_service_credentials: boolean;
+}
+
 const SetupWizardPage: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -48,6 +53,37 @@ const SetupWizardPage: React.FC = () => {
   });
 
   const steps = ['Metodo Setup', 'Configurazione', 'Conferma & Salva'];
+
+  // ============ APP GIÀ CONFIGURATA: RIALLINEAMENTO ============
+  // Il wizard resta raggiungibile su /setup anche dopo il primo setup: serve quando il
+  // Portal ha cambiato JWT secret e non si riesce più a entrare nell'app.
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncResult, setResyncResult] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    axios.get('/api/setup/check')
+      .then((response) => setSetupStatus(response.data))
+      .catch(() => setSetupStatus(null));
+  }, []);
+
+  const handleResync = async () => {
+    setResyncing(true);
+    setResyncResult(null);
+    try {
+      const response = await axios.post('/api/setup/resync');
+      setResyncResult({
+        severity: 'success',
+        text: response.data.changed
+          ? "JWT Secret aggiornato dal Portal: puoi tornare all'app e rifare il login."
+          : 'Il JWT Secret è già allineato al Portal.',
+      });
+    } catch (err: any) {
+      setResyncResult({ severity: 'error', text: err.response?.data?.detail || err.message || 'Errore durante il riallineamento' });
+    } finally {
+      setResyncing(false);
+    }
+  };
 
   // ============ GENERATE SECRET ============
   useEffect(() => {
@@ -522,6 +558,40 @@ const SetupWizardPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 4 }}>
             PrivacyManager
           </Typography>
+
+          {setupStatus?.is_configured && (
+            <Alert severity="warning" sx={{ mb: 4 }}>
+              <Typography variant="body2" sx={{ mb: 1.5 }}>
+                L'app è già configurata. Se i login non funzionano più perché il Portal ha cambiato il JWT
+                Secret (es. dopo il ripristino di un backup), riallineala al Portal.
+              </Typography>
+              {setupStatus.has_service_credentials ? (
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<CloudSyncIcon />}
+                  onClick={handleResync}
+                  disabled={resyncing}
+                >
+                  {resyncing ? 'Riallineamento...' : 'Riallinea con il Portal'}
+                </Button>
+              ) : (
+                <Typography variant="body2">
+                  Mancano le credenziali di servizio dell'app: prosegui con il Fetch Automatico e inserisci
+                  l'App Secret generato nel Portal.
+                </Typography>
+              )}
+              {resyncResult && (
+                <Alert severity={resyncResult.severity} sx={{ mt: 1.5 }}>
+                  {resyncResult.text}
+                </Alert>
+              )}
+              <Typography variant="caption" display="block" sx={{ mt: 1.5 }}>
+                Se nel Portal è stato rigenerato anche l'App Secret, prosegui con il Fetch Automatico e
+                inserisci quello nuovo: verranno aggiornati solo i segreti, non il database né gli URL.
+              </Typography>
+            </Alert>
+          )}
 
           <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
             {steps.map((label) => (

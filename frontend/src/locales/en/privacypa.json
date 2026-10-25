@@ -412,7 +412,8 @@
       "RTD": "RTD",
       "OPERATOR": "Operator",
       "AUDITOR": "Auditor",
-      "READ_ONLY": "Read only"
+      "READ_ONLY": "Read only",
+      "INTEGRATION": "Integration (service account)"
     },
     "modules": {
       "processing": "Processing register",
@@ -1080,7 +1081,8 @@
         "RTD": "Digital transition officer",
         "OPERATOR": "Operator",
         "AUDITOR": "Auditor",
-        "READ_ONLY": "Read only"
+        "READ_ONLY": "Read only",
+        "INTEGRATION": "Integration (service account)"
       },
       "opinionEntity": {
         "processing_activity": "Processing activity",

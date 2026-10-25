@@ -80,7 +80,7 @@ async def test_evaluation_opens_is_idempotent_and_resolves_automatically(env, w)
     pid = env["ids"]["proc_a"]
     await _approve(env, pid)
     first = await _evaluate(env, w["mgr"])
-    assert first["opened"] >= 1 and first["evaluated_rules"] == 30
+    assert first["opened"] >= 1 and first["evaluated_rules"] == 31
     again = await _evaluate(env, w["mgr"])
     assert again["opened"] == 0 and again["resolved"] == 0
 
@@ -226,7 +226,7 @@ async def test_why_and_rule_version_history(env, w):
 async def test_rule_listing_and_update_rules(env, w):
     c = env["client"]
     rules = (await c.get(RULES, headers=w["reader"])).json()
-    assert len(rules) == 30 and {r["version"] for r in rules} == {1} and all(r["enabled"] for r in rules)
+    assert len(rules) == 31 and {r["version"] for r in rules} == {1} and all(r["enabled"] for r in rules)
     expiring = next(r for r in rules if r["code"] == "AGREEMENT_EXPIRING")
     assert expiring["default_params"] == {"horizon_days": 60} and expiring["default_severity"] == "MEDIUM"
 
@@ -268,7 +268,7 @@ async def test_rule_parameters_severity_and_disabling_drive_findings(env, w):
     assert await _by_code(env, w["mgr"], "AGREEMENT_EXPIRING") == []
     closed = await _by_code(env, w["mgr"], "AGREEMENT_EXPIRING", status="RESOLVED")
     assert closed and closed[0]["resolution_notes"] == "Regola disabilitata"
-    assert (await _evaluate(env, w["mgr"]))["evaluated_rules"] == 29
+    assert (await _evaluate(env, w["mgr"]))["evaluated_rules"] == 30
 
 
 # ---------------------------------------------------------------- nuove regole

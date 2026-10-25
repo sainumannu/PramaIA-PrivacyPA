@@ -4,7 +4,7 @@ Riferimento: `PrivacyPA_Specifica_Funzionale_Tecnica_v1.0.md` (i numeri `§` son
 Stato al 2026-09-20: tutte le voci dell'MVP (§5) sono realizzate, salvo l'invio di email/notifiche esterne.
 Realizzati anche informative, flussi dei dati, conservazione, filiera, motore di regole, riferimenti normativi,
 azioni correttive, data breach, richieste degli interessati, audit strutturati, formazione, autorizzati al
-trattamento, pareri del DPO, DPO workspace, relazione annuale, privacy by design (nuovi progetti) e annotazioni trasversali (tag, campi custom, commenti) riservatezza (livelli, filigrana, step-up, blocco dell'export massivo), ricerca globale (anche per tag), query builder, webhook firmati (vedi `WEBHOOKS.md`), scadenze relative per ente, SBOM e test di autorizzazione e di isolamento tra enti.
+trattamento, pareri del DPO, DPO workspace, relazione annuale, privacy by design (nuovi progetti) e annotazioni trasversali (tag, campi custom, commenti) riservatezza (livelli, filigrana, step-up, blocco dell'export massivo), ricerca globale (anche per tag), query builder, webhook firmati (vedi `WEBHOOKS.md`), scadenze relative per ente, SBOM, test di autorizzazione e di isolamento tra enti, backup con verifica di ripristino (vedi `RUNBOOK_RIPRISTINO.md`).
 
 ## Rimandato per scelta
 
@@ -44,12 +44,62 @@ esterno può ricevere gli eventi come webhook firmati (`WEBHOOKS.md`).
   login (authorization code + PKCE) e lo step-up per le azioni sensibili (§136): l'interfaccia usa ancora il Portal.
 - **Idempotency-Key (§131)** attiva sulle POST JSON (middleware); non copre i caricamenti multipart.
 - **Step-up MFA senza flusso di riautenticazione**: l'interfaccia mostra il messaggio ma non rimanda al Portal con `acr_values`/`max_age`.
-- **Test di ripristino e piano DR (§57)**, rate limit distribuito (oggi in memoria, per processo).
+- **Prova di ripristino su un altro server e RPO/RTO reali (§57)**: il runbook c'è, la prova non è mai stata fatta; l'RTO nel runbook è ancora da compilare. Rate limit distribuito (oggi in memoria, per processo).
 - **Allineamento delle dipendenze**: l'ambiente in cui si sono eseguiti i test non coincide con `requirements.txt` (SBOM: `pytest` 8.3.3 invece di 8.0.0, `openpyxl` 3.1.2 invece di 3.1.5,
   `python-multipart` 0.0.12 invece di 0.0.9, `uvicorn` 0.32.0 invece di 0.30.0, `pytest-asyncio` 0.24.0, `pydantic-settings` 2.5.2). L'immagine Docker installa le versioni fissate: la suite
   non è mai stata eseguita con quelle. Da fare: una CI che installi `requirements.txt` e lanci i test.
 - **Scanner antimalware reale**: il protocollo clamd è provato solo con un server finto; provare con ClamAV vero.
 - **Docker**: il `Dockerfile` non è stato costruito né avviato.
+
+## Installer Windows (§ nessuna nella specifica; richiesto separatamente)
+
+- **Fatto**: `installer/` (Inno Setup + NSSM + PyInstaller, stesso schema di `C:\PramaIA-SysAdmin2`): `installer.iss`, `build-release.ps1`,
+  `service.ps1`/`start-service.ps1`/`start-service.cmd`, `INSTALLER_README.md`, `nssm.exe` copiato da SysAdmin2. `run_service.py` alla radice
+  (entry point PyInstaller: logging su file prima di importare `backend.main`, poi `uvicorn.run` sulla porta `BACKEND_PORT`, default 8003).
+  `backend/main.py` serve il build React (`frontend/build`) sulla stessa porta dell'API se la cartella esiste (PyInstaller la include via
+  `--add-data`), con fallback a `index.html` per il routing lato client; inattivo in sviluppo/test (la cartella non esiste). Al termine
+  dell'installazione Inno Setup apre il browser sull'app: se `.env` non ha ancora `PRAMAIA_JWT_SECRET`/`PORTAL_URL` (caso normale al primo
+  install), parte da solo il Setup Wizard esistente — nessun codice nuovo per questo, solo la sequenza dell'installer che ci porta davanti.
+  Corretta un'incoerenza preesistente in `.env.template` (`BACKEND_PORT=7003`, mai realmente usato da Docker/`start-all.ps1`, che usano sempre
+  8003): ora è 8003 ovunque.
+- **Nessun database esterno**: a differenza di SysAdmin2 (PostgreSQL), PrivacyPA usa solo SQLite anche nel pacchetto installato — coerente con
+  `services/backup_service.py`, che rifiuta esplicitamente PostgreSQL.
+- **Costruito e provato**: `installer\build-release.ps1` eseguito per davvero (PyInstaller 6.22.3, npm, Inno Setup 6, tutti presenti sulla macchina
+  di sviluppo). Generato `installer/installer_output/PramaIA-PrivacyManager-Setup-1.0.0.exe` (27 MB). L'eseguibile compilato (`release/PramaIA-PrivacyManager.exe`,
+  non l'installer) è stato avviato in una copia isolata (fuori dal repository) e verificato: si avvia, crea da solo database SQLite e cartelle,
+  `GET /api/health` → 200, `GET /` serve la pagina React con gli asset `/static/js/...`, `GET /api/setup/check` → `is_configured: false` (il wizard
+  parte davvero), le rotte sconosciute non-API tornano `index.html` mentre `/api/*` sconosciute restano 404, il pianificatore dei backup si avvia,
+  nessun errore nel log applicativo.
+- **Non verificato**: il file `.exe` dell'**installer** (quello con Inno Setup) non è mai stato eseguito, perché richiede permessi di amministratore
+  e installa un vero servizio Windows (via NSSM) sulla macchina — non fatto senza conferma esplicita, essendo un'azione invasiva su questo ambiente
+  di sviluppo. Non testati: `MIGRATIONS=alembic` dentro l'eseguibile compilato (i percorsi di Alembic potrebbero non risolversi sotto `sys._MEIPASS`;
+  il ponte `create_all`, verificato, resta il percorso predefinito), l'installazione su un Windows pulito, il login reale col Portal dal servizio
+  installato, la disinstallazione.
+- **Difetto reale trovato dopo un'installazione vera (v1.0.0)**: l'app installata come servizio Windows era raggiungibile in locale (`127.0.0.1:8003`)
+  ma non da altre macchine della rete. Causa: un servizio non interattivo (via NSSM) non fa mai comparire il prompt "Consenti l'accesso" di Windows,
+  quindi senza una regola esplicita il firewall blocca in silenzio le connessioni in ingresso. **Corretto in v1.0.1**: `installer.iss` crea la regola
+  (`netsh advfirewall firewall add rule … profile=any`) dopo l'avvio del servizio, e la rimuove alla disinstallazione. Rimedio manuale per chi ha
+  installato la v1.0.0: `New-NetFirewallRule -DisplayName "PramaIA-PrivacyManager" -Direction Inbound -Action Allow -Program "<percorso>\PramaIA-PrivacyManager.exe" -Profile Any` (richiede admin).
+- **Secondo difetto trovato mentre correggevo il primo**: `build-release.ps1 -SkipBackend` cancellava comunque `release\` al passo di pulizia (sempre
+  incondizionata) senza poi ricreare l'eseguibile: un installer "veloce" per una modifica solo a `installer.iss` risultava **senza payload**, nessun
+  errore visibile durante la build. Scoperto perché il pacchetto `1.0.1` generato così pesava uguale ma conteneva `release\` vuota di `.exe`/`_internal`
+  — controllato prima di consegnarlo, non distribuito. Corretto: la pulizia non cancella più `release\` se `-SkipFrontend`/`-SkipBackend` è attivo, e
+  un controllo esplicito blocca la build se manca l'eseguibile atteso.
+- **Verificato per davvero, questa volta con un'installazione reale** (non solo l'eseguibile nudo): `PramaIA-PrivacyManager-Setup-1.0.1.exe` installato,
+  servizio Windows `PramaIA-PrivacyManager` creato e avviato da NSSM, raggiungibile su `127.0.0.1:8003` e su un'altra interfaccia di rete della stessa
+  macchina, log puliti, database SQLite creato al primo avvio, `GET /api/setup/check` conferma che il wizard partirebbe. Non ancora verificato:
+  l'accesso da una macchina fisicamente diversa (non disponibile in questo ambiente) e la disinstallazione completa.
+- **Terzo difetto, questa volta un vero difetto applicativo (non solo dell'installer) trovato dall'utente**: dopo il login dal Portal (redirect con
+  `?token=`), pagina completamente bianca. Causa: `SecurityHeadersMiddleware` (`backend/middleware/security.py`, §55.6) impostava su **ogni** risposta,
+  frontend incluso, `Content-Security-Policy: default-src 'none'` — corretto quando questo backend era solo un'API, ma il pacchetto installer serve
+  ora anche il frontend dalla stessa porta (vedi sopra), e quella CSP blocca il proprio script, il proprio foglio di stile, i font di Google e persino
+  le chiamate dell'app verso sé stessa. **Non è mai emerso nei test**: nessun test copriva la CSP delle rotte non-API (semplicemente non esistevano
+  prima dell'installer). **Corretto in v1.0.2**: CSP separata per `/api/*` e `/health/*` (invariata, `default-src 'none'`) e per il resto (`script-src
+  'self'`, `style-src 'self' 'unsafe-inline'` + Google Fonts, `connect-src 'self'`, `frame-ancestors 'none'`); nuovo test
+  `test_frontend_csp_allows_its_own_script_and_style_but_not_the_api_wildcard` in `test_privacypa_hardening.py` (10/10 passati). Diagnosticato dalla
+  console del browser dell'utente (screenshot con gli errori CSP espliciti) — senza quello sarebbe stato molto più lento da trovare da qui.
+- **Resta**: icona applicativa (oggi nessuna, Inno Setup userebbe l'icona di default dell'eseguibile); verificare il login reale col Portal dal
+  servizio installato.
 
 ## Moduli funzionali non ancora realizzati
 
@@ -97,6 +147,33 @@ esterno può ricevere gli eventi come webhook firmati (`WEBHOOKS.md`).
 - **Tetto ai download**: conta gli eventi di audit dell'ultima ora per utente e livello (finestra mobile); non sostituisce un rate limit
   distribuito. **Export completo**: gli elementi `HIGHLY_RESTRICTED` (default) escono come righe strutturali senza contenuto, con file,
   commenti, valori custom e righe di audit collegati; approvazioni e outbox non sono ridotti.
+
+## Limiti noti del backup e del ripristino (§57)
+
+- **Il backup del template non funzionava**: router e pianificatore passavano una sessione asincrona a un servizio che usava l'API sincrona (`db.query` su `AsyncSession`) e il
+  pianificatore eseguiva SQL su tabelle inesistenti; `GET /api/backup/logs` era intercettata da `/{filename}`. Nessun test lo notava. Riscritti in modo asincrono
+  (`backup_service.py`, `backup_scheduler.py`, `backup_router.py`), con 17 test in `test_backup_dr.py`.
+- **Cosa fa ora**: backup del database + archivio dei documenti con manifest; cifratura opzionale AES-256-GCM a blocchi (`BACKUP_ENCRYPTION_KEY`); copia esterna verificata
+  per checksum (`BACKUP_OFFSITE_DIR`); **verifica di ripristino** su copia temporanea (decifratura, integrità, revisione dello schema, dati, coerenza documenti/database),
+  eseguita a ogni backup pianificato e prima di ogni ripristino; ripristino atomico con backup di sicurezza e rimozione dei `-wal`/`-shm`; ripristino dei documenti che non
+  sovrascrive mai; retention che elimina insieme database, archivio e copia esterna.
+- **Limiti**: solo SQLite (con PostgreSQL il servizio lo dichiara: `pg_dump`); backup giornaliero, nessun ripristino a un istante; il ripristino richiede il riavvio e non c'è
+  modalità di manutenzione; nessun blocco distribuito tra istanze (`BACKUP_SCHEDULER=false` su quelle in più); nessun avviso via email (errori nel registro e nel log ERROR);
+  chi perde la passphrase perde i backup cifrati; i segreti dell'applicazione non sono nel backup. Non provato: ripristino su un altro server, database di dimensioni reali
+  (la cifratura è a blocchi da 1 MiB, ma la verifica copia il file in una cartella temporanea: serve spazio pari al backup), Windows con antivirus che blocca il file durante lo scambio.
+- L'interfaccia (Impostazioni → Backup) ha il pulsante «Verify» e le etichette «Encrypted»/«+ documents»; non ha ancora il pulsante per ripristinare i documenti (solo API) né traduzioni
+  (la sezione è in inglese, come nel template).
+
+## Connettore VideoPA: lettura ed eventi (W1, W2, W3)
+
+- **Fatto**: ruolo `INTEGRATION` (vede solo `integration.*`, mai gli altri moduli; `EVERYONE` lo esclude e i permessi non sono modificabili per ente), `GET /integrations/ping`, snapshot per trattamento con ETag/304 e elenco con `updated_since`, pagine da 200, parametro d'ente `retention_category` (`GET/PUT /policy/integrations`, migrazione 0007), conservazione a calendario, DPIA riservata come `{"restricted": true}`. Contratto e procedura in `INTEGRAZIONE_VIDEOPA.md`; 20 test in `test_privacypa_integrations.py`.
+- **W3 fatto**: `POST /integrations/events` (fino a 100 eventi, esito per evento ACCEPTED/DUPLICATE/UNMATCHED/REJECTED), tabella `privacypa_external_events` (migrazione 0008), regola `EXTERNAL_CHANGE_REVIEW_PENDING` (una segnalazione per trattamento+tipo con contatore, gravità dal tipo di evento) e task alla struttura + referente privacy, archiviazione con nota (`externalevent.edit`), elenco (`externalevent.view`), conservazione 24 mesi configurabile, audit e outbox `external_event.received`. 15 test in `test_privacypa_external_events.py`.
+- **Decisioni prese**: A (categoria configurata per ente), B (liste + DPIA di riferimento), C (ruolo `INTEGRATION`), D (task a struttura + referente), E (VideoPA spinge), F (riservata senza dettagli).
+- **Limiti**: `updated_since` non vede la rimozione di un collegamento se non tocca il trattamento (l'ETag sì); l'elenco calcola tutti gli snapshot visibili e poi filtra; la categoria delle riprese si imposta solo via API; `AMBIGUOUS` se due regole diverse condividono la categoria; non provato con un JWT del Portal reale né con un client VideoPA; PostgreSQL non provato.
+- **Deviazione dalla bozza**: il ruolo non legge i moduli (trattamenti, DPIA…), solo lo snapshot: meno superficie, nessun bisogno ulteriore.
+- **Limiti W3**: una revisione del trattamento chiude la segnalazione ma non archivia gli eventi (restano PENDING fino ai 24 mesi); chiusura per revisione solo se `last_review_date` è successiva al giorno dell'evento; i `UNMATCHED` non si possono ancora smistare (solo elenco e archivio); gravità per tipo fissa nel codice (non configurabile per ente, diversamente dalla bozza); tipi ammessi: elenco chiuso (ANPR assunto come `AnprEnabled`, da confermare con VideoPA); nessuna schermata; ogni ricezione rivaluta tutte le regole dell'ente.
+- **Dati di prova (W5, in parte)**: `seed_demo_data.py` crea l'account `svc-videopa`, la categoria delle riprese, cinque trattamenti di videosorveglianza con situazioni diverse ed eventi già ricevuti (vedi `INTEGRAZIONE_VIDEOPA.md`, sezione 8); test `test_demo_seed_runs_and_prepares_the_videopa_scenarios`. Nel farlo è emerso che il seed **non girava più** dopo le validazioni del §141 (mancava una categoria di dati sulla «Videosorveglianza urbana»): corretto. Non è incluso il JWT dell'account di servizio.
+- **Resta**: W4 (eventi webhook `dpia.status_changed`, `notice.changed`, `retention.changed`), W5 (ambiente di prova con dati d'esempio), W6 (vista DPO), schermata per la categoria delle riprese.
 
 ## Limiti noti di SBOM e dipendenze (§137, §138)
 

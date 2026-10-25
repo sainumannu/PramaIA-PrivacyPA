@@ -31,6 +31,8 @@ class PrivacyRoleCode(str, enum.Enum):
     OPERATOR = "OPERATOR"
     AUDITOR = "AUDITOR"
     READ_ONLY = "READ_ONLY"
+    # Account di servizio di un sistema esterno (es. VideoPA): vede solo `integration.*`, mai gli altri moduli.
+    INTEGRATION = "INTEGRATION"
 
 
 class ScopeType(str, enum.Enum):

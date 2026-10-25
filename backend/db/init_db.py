@@ -34,6 +34,7 @@ from backend.models import privacypa_annotations  # noqa: F401
 from backend.models import privacypa_compliance  # noqa: F401
 from backend.models import privacypa_idempotency  # noqa: F401
 from backend.models import privacypa_webhooks  # noqa: F401
+from backend.models import privacypa_external_events  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

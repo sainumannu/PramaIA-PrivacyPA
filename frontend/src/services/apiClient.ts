@@ -1,4 +1,4 @@
-import { authGuard } from './authGuard';
+import { authGuard, redirectToPortal } from './authGuard';
 import { logger } from '../utils/logger';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -32,7 +32,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     logger.apiResponse(method, path, response.status, duration);
 
     if (response.status === 401) {
-      authGuard.logout();
+      authGuard.clearSession();
+      redirectToPortal('La sessione è scaduta o non è più valida. Verrai reindirizzato al Portal per effettuare nuovamente l\'accesso.');
       throw new ApiError(401, 'Session expired. Redirecting to Portal...');
     }
 
@@ -77,7 +78,8 @@ export const apiClient = {
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: form });
     if (response.status === 401) {
-      authGuard.logout();
+      authGuard.clearSession();
+      redirectToPortal('La sessione è scaduta o non è più valida. Verrai reindirizzato al Portal per effettuare nuovamente l\'accesso.');
       throw new ApiError(401, 'Session expired. Redirecting to Portal...');
     }
     if (!response.ok) {
@@ -93,7 +95,8 @@ export const apiClient = {
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
     if (response.status === 401) {
-      authGuard.logout();
+      authGuard.clearSession();
+      redirectToPortal('La sessione è scaduta o non è più valida. Verrai reindirizzato al Portal per effettuare nuovamente l\'accesso.');
       throw new ApiError(401, 'Session expired. Redirecting to Portal...');
     }
     if (!response.ok) {

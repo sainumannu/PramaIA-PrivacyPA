@@ -1,141 +1,92 @@
 """
-Backup Scheduler Service
+Backup pianificato (§57, §74): ogni giorno all'ora configurata (UTC), se abilitato.
 
-This module handles scheduled backups using APScheduler.
-It runs daily at the configured hour (UTC) if enabled.
+Il ciclo è: backup → **verifica di ripristino** del backup appena creato. Un errore in uno dei due passaggi resta nel registro
+(`GET /api/backup/logs`) e nel log dell'applicazione a livello ERROR, da collegare al monitoraggio (§57: «monitoraggio fallimenti»).
+
+Con più istanze dell'applicazione ognuna avrebbe il suo pianificatore e farebbe il proprio backup: usare `BACKUP_SCHEDULER=false`
+su tutte tranne una.
 """
-
 import logging
-from datetime import datetime, time
+import os
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.database import get_db
+from backend.db.database import AsyncSessionLocal
 from backend.services.backup_service import BackupService
-from backend.models.backup_models import BackupConfig
 
 logger = logging.getLogger(__name__)
 
 
+async def run_scheduled_backup(session_factory=AsyncSessionLocal, **service_options) -> dict | None:
+    """Backup e verifica. Restituisce l'esito della verifica; nessuna eccezione esce (il pianificatore deve restare vivo)."""
+    logger.info("Backup pianificato in corso...")
+    try:
+        async with session_factory() as db:
+            service = BackupService(db, **service_options)
+            info = await service.create_backup(user_email="system@scheduler", scheduled=True)
+            verdict = await service.verify_backup(info["filename"], user_email="system@scheduler")
+            if verdict["ok"]:
+                logger.info(f"Backup pianificato completato e verificato: {info['filename']}")
+            else:
+                logger.error(f"Backup pianificato creato ma NON verificato: {info['filename']}: {verdict['checks']}")
+            if info.get("offsite") and not info["offsite"]["ok"]:
+                logger.error(f"Copia esterna del backup {info['filename']} fallita: {info['offsite']['error']}")
+            return verdict
+    except Exception as e:
+        logger.error(f"Backup pianificato FALLITO: {e}")
+        return None
+
+
 class BackupScheduler:
-    """Manages scheduled backups"""
-    
     def __init__(self):
         self.scheduler: Optional[AsyncIOScheduler] = None
         self.job_id = "scheduled_backup"
-    
+
     async def start(self):
-        """Initialize and start the scheduler"""
-        logger.info("Starting backup scheduler...")
-        
-        # Create scheduler
+        if os.getenv("BACKUP_SCHEDULER", "true").strip().lower() in ("0", "false", "no"):
+            logger.info("Pianificatore dei backup disattivato (BACKUP_SCHEDULER=false)")
+            return
         self.scheduler = AsyncIOScheduler()
-        
-        # Load configuration and schedule job
         await self._update_schedule()
-        
-        # Start the scheduler
         self.scheduler.start()
-        logger.info("Backup scheduler started")
-    
+        logger.info("Pianificatore dei backup avviato")
+
     async def stop(self):
-        """Stop the scheduler"""
         if self.scheduler:
-            logger.info("Stopping backup scheduler...")
             self.scheduler.shutdown(wait=False)
-            logger.info("Backup scheduler stopped")
-    
+            self.scheduler = None
+            logger.info("Pianificatore dei backup fermato")
+
     async def _update_schedule(self):
-        """Update the scheduled job based on current configuration"""
+        """Allinea il lavoro pianificato alla configurazione salvata."""
+        if self.scheduler is None:
+            return
         try:
-            # Get current configuration from database
-            async for db in get_db():
-                try:
-                    result = await db.execute(
-                        "SELECT enabled, schedule_hour FROM backup_configs ORDER BY id DESC LIMIT 1"
-                    )
-                    row = result.fetchone()
-                    
-                    if row is None:
-                        logger.warning("No backup configuration found, scheduler disabled")
-                        return
-                    
-                    enabled, schedule_hour = row
-                    
-                    # Remove existing job if present
-                    if self.scheduler and self.scheduler.get_job(self.job_id):
-                        self.scheduler.remove_job(self.job_id)
-                        logger.info(f"Removed existing scheduled backup job")
-                    
-                    # Add new job if enabled
-                    if enabled and self.scheduler:
-                        trigger = CronTrigger(hour=schedule_hour, minute=0)
-                        self.scheduler.add_job(
-                            self._run_scheduled_backup,
-                            trigger=trigger,
-                            id=self.job_id,
-                            name="Scheduled Database Backup",
-                            replace_existing=True,
-                        )
-                        logger.info(f"Scheduled backup at {schedule_hour:02d}:00 UTC (enabled)")
-                    else:
-                        logger.info("Scheduled backup disabled in configuration")
-                
-                finally:
-                    await db.close()
-                    break  # Only iterate once
-                    
+            async with AsyncSessionLocal() as db:
+                config = await BackupService(db).get_config()
+                enabled, hour = config.enabled, config.schedule_hour
+            if self.scheduler.get_job(self.job_id):
+                self.scheduler.remove_job(self.job_id)
+            if enabled:
+                self.scheduler.add_job(run_scheduled_backup, trigger=CronTrigger(hour=hour, minute=0), id=self.job_id,
+                                       name="Backup pianificato del database", replace_existing=True)
+                logger.info(f"Backup pianificato alle {hour:02d}:00 UTC")
+            else:
+                logger.info("Backup pianificato disabilitato nella configurazione")
         except Exception as e:
-            logger.error(f"Failed to update backup schedule: {e}")
-    
-    async def _run_scheduled_backup(self):
-        """Execute a scheduled backup"""
-        logger.info("Running scheduled backup...")
-        
-        try:
-            async for db in get_db():
-                try:
-                    service = BackupService(db)
-                    result = await service.create_backup(
-                        user_email="system@scheduler",
-                        scheduled=True
-                    )
-                    
-                    # Update last_run timestamp
-                    await db.execute(
-                        "UPDATE backup_configs SET last_run = ? WHERE id = (SELECT MAX(id) FROM backup_configs)",
-                        (datetime.utcnow(),)
-                    )
-                    await db.commit()
-                    
-                    logger.info(f"Scheduled backup completed: {result.get('filename')}")
-                
-                except Exception as e:
-                    logger.error(f"Scheduled backup failed: {e}")
-                    await db.rollback()
-                
-                finally:
-                    await db.close()
-                    break  # Only iterate once
-                    
-        except Exception as e:
-            logger.error(f"Failed to run scheduled backup: {e}")
-    
+            logger.error(f"Aggiornamento del pianificatore dei backup fallito: {e}")
+
     async def reload_configuration(self):
-        """Reload configuration and update schedule (called after config changes)"""
-        logger.info("Reloading backup scheduler configuration...")
         await self._update_schedule()
 
 
-# Global scheduler instance
 _scheduler: Optional[BackupScheduler] = None
 
 
 async def get_scheduler() -> BackupScheduler:
-    """Get or create the global scheduler instance"""
     global _scheduler
     if _scheduler is None:
         _scheduler = BackupScheduler()
@@ -143,13 +94,10 @@ async def get_scheduler() -> BackupScheduler:
 
 
 async def start_backup_scheduler():
-    """Start the backup scheduler (call on app startup)"""
-    scheduler = await get_scheduler()
-    await scheduler.start()
+    await (await get_scheduler()).start()
 
 
 async def stop_backup_scheduler():
-    """Stop the backup scheduler (call on app shutdown)"""
     global _scheduler
     if _scheduler:
         await _scheduler.stop()
@@ -157,6 +105,4 @@ async def stop_backup_scheduler():
 
 
 async def reload_backup_schedule():
-    """Reload backup schedule after configuration changes"""
-    scheduler = await get_scheduler()
-    await scheduler.reload_configuration()
+    await (await get_scheduler()).reload_configuration()

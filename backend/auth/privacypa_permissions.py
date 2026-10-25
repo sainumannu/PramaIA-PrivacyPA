@@ -33,7 +33,8 @@ GOVERNANCE = ADMINS + (R.PRIVACY_MANAGER, R.DPO)
 # Registro trattamenti: storicamente senza ICT e RTD.
 REGISTER_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT, R.OPERATOR)
 WRITERS = REGISTER_WRITERS + (R.ICT, R.RTD)
-EVERYONE = tuple(R)
+# L'account di servizio dei connettori non è un utente: vede solo `integration.*` (§ connettori), mai gli altri moduli.
+EVERYONE = tuple(r for r in R if r != R.INTEGRATION)
 IMPORTERS = GOVERNANCE
 AUDIT_READERS = GOVERNANCE + (R.AUDITOR,)
 # Violazioni e richieste degli interessati sono dati sensibili: non li vedono operatori e sola lettura (§10).
@@ -44,11 +45,13 @@ DSR_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT, R.OPERATOR)
 AUDIT_PLANNERS = GOVERNANCE + (R.AUDITOR,)
 TRAINING_MANAGERS = GOVERNANCE + (R.PRIVACY_REFERENT,)
 CUSTOMFIELD_ADMINS = ADMINS + (R.PRIVACY_MANAGER,)
-COMMENTERS = tuple(r for r in R if r != R.READ_ONLY)
+COMMENTERS = tuple(r for r in EVERYONE if r != R.READ_ONLY)
 AUTHORIZATION_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT)
 AUTHORIZATION_VIEWERS = AUTHORIZATION_WRITERS + (R.ICT, R.RTD, R.AUDITOR)
 DPO_VIEWERS = ADMINS + (R.DPO, R.PRIVACY_MANAGER, R.AUDITOR)
 QUERY_EXPORTERS = AUDIT_READERS + (R.MANAGER,)
+INTEGRATION_READERS = GOVERNANCE + (R.INTEGRATION,)
+INTEGRATION_WRITERS = ADMINS + (R.INTEGRATION,)
 
 
 def _module(view: Iterable[R], **actions: Iterable[R]) -> dict[str, tuple[R, ...]]:
@@ -103,6 +106,8 @@ DEFAULT_MODULES: dict[str, dict[str, tuple[R, ...]]] = {
     "policy": _module(ADMINS, administer=ADMINS),
     "outbox": _module(ADMINS, administer=ADMINS),
     "webhook": _module(ADMINS, administer=ADMINS),
+    "integration": _module(INTEGRATION_READERS, create=INTEGRATION_WRITERS),
+    "externalevent": _module(GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT), edit=GOVERNANCE),
     "export": _module(ADMINS, administer=ADMINS),
 }
 
@@ -113,7 +118,7 @@ DEFAULT_MATRIX: dict[str, tuple[R, ...]] = {
 # Non modificabili per ente: evitano di perdere l'accesso all'amministrazione o di delegarla.
 LOCKED_PERMISSIONS = frozenset({
     "roles.administer", "policy.administer", "outbox.view", "outbox.administer", "export.view", "export.administer",
-    "webhook.view", "webhook.administer",
+    "webhook.view", "webhook.administer", "integration.view", "integration.create",
 })
 
 

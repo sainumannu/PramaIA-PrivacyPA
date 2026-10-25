@@ -40,6 +40,7 @@ from backend.routers import (
     privacypa_annotation_router,
     privacypa_query_router,
     privacypa_webhook_router,
+    privacypa_integration_router,
     privacypa_catalog_router,
     privacypa_risk_router,
     privacypa_approval_router,
@@ -124,6 +125,7 @@ async def env(tmp_path, monkeypatch):
         privacypa_annotation_router,
         privacypa_query_router,
         privacypa_webhook_router,
+        privacypa_integration_router,
         privacypa_catalog_router,
         privacypa_risk_router,
         privacypa_identity_router,
@@ -204,3 +206,16 @@ async def version_of(client, url, tenant=TA):
     r = await client.get(url, headers=_h(tenant, "root", "admin"))
     assert r.status_code == 200, r.text
     return r.json()["row_version"]
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_background_jwt_resync(monkeypatch):
+    """Un token con firma non valida in un test avvierebbe il riallineamento automatico del
+    JWT secret (backend/services/portal_secret_sync.py) verso il Portal vero, con le
+    credenziali del .env reale se è stato caricato, e potrebbe riscriverlo: nei test il
+    worker in background non fa nulla (la logica che decide se avviarlo resta testata)."""
+    from backend.services import portal_secret_sync
+    monkeypatch.setattr(portal_secret_sync, "_background_worker", lambda: None)

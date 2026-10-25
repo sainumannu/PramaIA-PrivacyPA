@@ -28,3 +28,7 @@ frontend/.env.local
 
 .DS_Store
 Thumbs.db
+
+# Artefatti di build dell'installer Windows (rigenerabili con installer\build-release.ps1)
+/release/
+installer/installer_output/
