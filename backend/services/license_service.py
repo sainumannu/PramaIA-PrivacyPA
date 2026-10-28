@@ -78,10 +78,17 @@ class LicenseService:
     PUBLIC_KEY_PATH = Path("license_public_key.pem")  # Per verifica firma locale
     CACHE_TTL_SECONDS = 300  # 5 minuti cache in memoria
     
-    # Cache in memoria
+    # Cache in memoria, condivisa da tutte le istanze (ogni richiesta crea un LicenseService nuovo)
     _cached_result: Optional[LicenseCheckResult] = None
     _cache_timestamp: Optional[datetime] = None
     _cached_payload: Optional[dict] = None
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Svuota la cache condivisa (test, cambio di licenza)."""
+        cls._cached_result = None
+        cls._cache_timestamp = None
+        cls._cached_payload = None
     
     def __init__(self, db: Optional[AsyncSession] = None):
         self.db = db
@@ -308,7 +315,7 @@ class LicenseService:
     @classmethod
     def _ensure_module_enabled(cls, required_module: str, allowed_modules: list[str]) -> None:
         """Verifica che il modulo richiesto sia nella lista dei moduli licenziati."""
-        if required_module not in allowed_modules:
+        if required_module not in allowed_modules and "*" not in allowed_modules:
             raise ValueError(
                 f"Module '{required_module}' not licensed (allowed: {allowed_modules})"
             )
@@ -364,17 +371,24 @@ class LicenseService:
         Returns:
             LicenseCheckResult con esito dettagliato
         """
-        # Cache check (solo se non force_refresh e non sync)
-        if not force_refresh and not sync_from_portal:
-            if self._cached_result and self._cache_timestamp:
-                age = (datetime.now(timezone.utc) - self._cache_timestamp).total_seconds()
-                if age < self.CACHE_TTL_SECONDS:
-                    logger.debug("Using cached license check result")
-                    return self._cached_result
+        cls = type(self)
+        cache_fresh = bool(
+            cls._cache_timestamp
+            and (datetime.now(timezone.utc) - cls._cache_timestamp).total_seconds() < self.CACHE_TTL_SECONDS
+        )
+
+        # Cache check (solo se non force_refresh e non sync). Il risultato in cache è sempre valido,
+        # ma un modulo richiesto va comunque confrontato con quelli concessi.
+        if not force_refresh and not sync_from_portal and cache_fresh and cls._cached_result:
+            modules = cls._cached_result.allowed_modules or []
+            if required_module is None or required_module in modules or "*" in modules:
+                logger.debug("Using cached license check result")
+                return cls._cached_result
         
-        # Sync dal Portal se richiesto o se non c'è payload in cache
+        # Sync dal Portal se richiesto, se non c'è payload in cache o se la cache è scaduta
+        # (una licenza rinnovata o revocata nel Portal arriva entro il TTL)
         sync_status = None
-        if sync_from_portal or not self._cached_payload:
+        if sync_from_portal or not cls._cached_payload or not cache_fresh:
             # Se Portal configurato, prova sync
             if self.portal_client:
                 try:
@@ -416,7 +430,7 @@ class LicenseService:
                 sync_status = "local_file"
         else:
             # Usa payload già in cache
-            payload = self._cached_payload
+            payload = cls._cached_payload
             payload_checksum = None
             last_sync_at = None
             sync_status = "cached"
@@ -567,9 +581,9 @@ class LicenseService:
         )
         
         # Update cache
-        self._cached_result = result
-        self._cache_timestamp = datetime.now(timezone.utc)
-        self._cached_payload = payload
+        cls._cached_result = result
+        cls._cache_timestamp = datetime.now(timezone.utc)
+        cls._cached_payload = payload
         
         await self._log_check(result, local_fingerprint, sync_status)
         return result

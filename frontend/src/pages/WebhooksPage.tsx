@@ -13,6 +13,7 @@ import WebhookIcon from '@mui/icons-material/Webhook';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const API = '/api/privacypa/webhooks';
 
@@ -105,7 +106,7 @@ export const WebhooksPage: React.FC = () => {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ ...EMPTY })}>{t('webhooks.add')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('webhooks.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         <Paper>

@@ -137,7 +137,8 @@ def test_url_policy_accepts_only_https_public_addresses(monkeypatch):
 async def test_only_administrators_manage_webhooks(env, w):
     c = env["client"]
     assert [e["name"] for e in (await c.get(f"{WH}/events", headers=ADMIN)).json()] == [
-        "processing.updated", "processor.expiring", "task.overdue", "breach.created", "dpia.review_due", "document.expiring", "finding.opened"]
+        "processing.updated", "processor.expiring", "task.overdue", "breach.created", "dpia.review_due", "document.expiring", "finding.opened",
+        "access_approval.decided", "authorization_profile.updated", "authorization.expired_not_revoked"]
     for who in ("mgr", "op", "dpo"):
         assert (await c.get(WH, headers=w[who])).status_code == 403
         assert (await c.get(f"{WH}/events", headers=w[who])).status_code == 403

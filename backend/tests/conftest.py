@@ -33,10 +33,12 @@ from backend.models import (  # noqa: F401
     privacypa_risk,
     privacypa_rules,
     privacypa_tasks,
+    privacypa_access,
 )
 from backend.models.privacypa_identity import ScopeType, UserRoleAssignment
 from backend.models.privacypa_organization import Organization, OrganizationalUnit, OrganizationalUnitType
 from backend.routers import (
+    privacypa_access_router,
     privacypa_annotation_router,
     privacypa_query_router,
     privacypa_webhook_router,
@@ -129,6 +131,7 @@ async def env(tmp_path, monkeypatch):
         privacypa_catalog_router,
         privacypa_risk_router,
         privacypa_identity_router,
+        privacypa_access_router,
     ):
         app.include_router(module.router)
     register_error_handlers(app)

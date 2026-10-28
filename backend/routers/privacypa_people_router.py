@@ -10,10 +10,11 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.portal_jwt import TokenPayload, get_current_user
-from backend.auth.privacypa_authz import require_tenant
+from backend.auth.privacypa_authz import record_on_behalf_of, require_tenant
 from backend.auth.privacypa_permissions import (
     assert_permission,
     assert_permission_for_unit,
@@ -24,7 +25,8 @@ from backend.auth.privacypa_permissions import (
 from backend.auth.privacypa_scope import build_scope
 from backend.db.database import get_db
 from backend.models.privacypa_assets import Asset
-from backend.models.privacypa_people import AssignmentStatus, Authorization
+from backend.models.privacypa_people import AssignmentStatus, Authorization, AuthorizationProfile
+from backend.services import privacypa_directory as directory
 from backend.services.privacypa_compliance_service import ComplianceError, ComplianceNotFound
 from backend.services.privacypa_people_service import AuthorizationService, TrainingService
 from backend.services.privacypa_processing_service import ProcessingService
@@ -282,22 +284,58 @@ async def list_completions(
 
 au_router = APIRouter(
     prefix="/api/privacypa/authorizations", tags=["PrivacyPA - Autorizzati al trattamento"],
-    dependencies=[Depends(require_module_view("authorization"))],
+    dependencies=[Depends(require_module_view("authorization")), Depends(record_on_behalf_of)],
 )
 
 
 class ProfileIn(BaseModel):
+    """Profilo di accesso. In modifica i campi non inviati restano invariati."""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(None, max_length=2000)
+    code: str | None = Field(None, max_length=50)
+    asset_id: str | None = None
+    data_category_ids: list[str] | None = None
+    allowed_operations: list[str] | None = None
+    allowed_scope_types: list[str] | None = None
+    processing_activity_ids: list[str] | None = None
+    required_training_course_ids: list[str] | None = None
+    max_duration_days: int | None = None
+    active: bool | None = None
+
+
+class ScopeIn(BaseModel):
+    type: str = Field(..., max_length=30)
+    value: str | None = Field(None, max_length=2000)
 
 
 class AuthorizationIn(BaseModel):
-    user_id: str = Field(..., min_length=1, max_length=100)
+    """Concessione. In modifica i campi non inviati restano invariati e `user_id` si può omettere (non si cambia)."""
+
+    user_id: str | None = Field(None, min_length=1, max_length=100)
     processing_activity_id: str | None = None
     asset_id: str | None = None
-    authorization_profile_id: str
-    valid_from: date
+    authorization_profile_id: str | None = None
+    valid_from: date | None = None
     valid_to: date | None = None
+    # Estremi dell'autorizzazione del responsabile della banca dati e origine (richieste di accesso dall'HelpDesk).
+    authorized_by_name: str | None = Field(None, max_length=255)
+    authorization_reference: str | None = Field(None, max_length=255)
+    authorization_date: date | None = None
+    authorization_notes: str | None = Field(None, max_length=4000)
+    operations: list[str] | None = None
+    scope: ScopeIn | None = None
+    profile_version: int | None = None
+    source_module: str | None = Field(None, max_length=30)
+    source_ref: str | None = Field(None, max_length=100)
+    forced: bool = False
+
+
+class RevokeIn(BaseModel):
+    # `reason` è il nome storico; l'HelpDesk invia `revoked_reason`: valgono entrambi.
+    reason: str | None = Field(None, max_length=2000)
+    revoked_reason: str | None = Field(None, max_length=2000)
+    revocation_reference: str | None = Field(None, max_length=255)
 
 
 async def _unit_of(db: AsyncSession, tenant_id: str, processing_id: str | None, asset_id: str | None) -> str | None:
@@ -327,17 +365,20 @@ async def _auth_guard(db, tenant_id, user, auth: Authorization | None, code: str
 
 
 @au_router.get("/profiles")
-async def list_profiles(tenant_id: str = Depends(require_tenant), user: TokenPayload = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    return [p.to_dict() for p in await AuthorizationService(db).search_profiles(tenant_id)]
+async def list_profiles(
+    asset_id: str | None = None, active_only: bool = False,
+    tenant_id: str = Depends(require_tenant), user: TokenPayload = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    return [p.to_dict() for p in await AuthorizationService(db).search_profiles(tenant_id, asset_id=asset_id, active_only=active_only)]
 
 
 @au_router.post("/profiles", status_code=status.HTTP_201_CREATED)
 async def create_profile(
     body: ProfileIn, response: Response, tenant_id: str = Depends(require_tenant),
-    user: TokenPayload = Depends(require_permission("authorization.create")), db: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(require_permission("authorization.administer")), db: AsyncSession = Depends(get_db),
 ):
     try:
-        profile = await AuthorizationService(db).create_profile(tenant_id, _uid(user), body.name, body.description)
+        profile = await AuthorizationService(db).create_profile(tenant_id, _uid(user), **body.model_dump())
     except ComplianceError as e:
         raise _http(e)
     response.headers["ETag"] = etag_of(profile)
@@ -347,13 +388,13 @@ async def create_profile(
 @au_router.patch("/profiles/{profile_id}")
 async def update_profile(
     profile_id: str, body: ProfileIn, response: Response, tenant_id: str = Depends(require_tenant),
-    version: int = Depends(require_if_match), user: TokenPayload = Depends(require_permission("authorization.edit")),
+    version: int = Depends(require_if_match), user: TokenPayload = Depends(require_permission("authorization.administer")),
     db: AsyncSession = Depends(get_db),
 ):
     svc = AuthorizationService(db)
     assert_version(_found(await svc.get_profile(tenant_id, profile_id), "Profilo"), version)
     try:
-        profile = await svc.update_profile(tenant_id, profile_id, _uid(user), body.name, body.description)
+        profile = await svc.update_profile(tenant_id, profile_id, _uid(user), **body.model_dump(exclude_unset=True))
     except (ComplianceError, ComplianceNotFound) as e:
         raise _http(e)
     response.headers["ETag"] = etag_of(profile)
@@ -363,7 +404,7 @@ async def update_profile(
 @au_router.delete("/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_profile(
     profile_id: str, tenant_id: str = Depends(require_tenant),
-    user: TokenPayload = Depends(require_permission("authorization.delete")), db: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(require_permission("authorization.administer")), db: AsyncSession = Depends(get_db),
 ):
     try:
         await AuthorizationService(db).delete_profile(tenant_id, profile_id, _uid(user))
@@ -371,15 +412,42 @@ async def delete_profile(
         raise _http(e)
 
 
+async def _with_names(db: AsyncSession, tenant_id: str, rows: list[Authorization]) -> list[dict]:
+    """Nome del sistema e codice del profilo, anche se disattivati o eliminati (il catalogo mostra solo gli attivi)."""
+    asset_ids = {a.asset_id for a in rows if a.asset_id}
+    profile_ids = {a.authorization_profile_id for a in rows if a.authorization_profile_id}
+    assets = dict((await db.execute(select(Asset.id, Asset.name).where(
+        Asset.tenant_id == tenant_id, Asset.id.in_(asset_ids)))).all()) if asset_ids else {}
+    profiles = dict((await db.execute(select(AuthorizationProfile.id, AuthorizationProfile.code).where(
+        AuthorizationProfile.tenant_id == tenant_id, AuthorizationProfile.id.in_(profile_ids)))).all()) if profile_ids else {}
+    return [{**a.to_dict(), "asset_name": assets.get(a.asset_id), "profile_code": profiles.get(a.authorization_profile_id)}
+            for a in rows]
+
+
+@au_router.get("/people")
+async def portal_people(tenant_id: str = Depends(require_tenant)):
+    """Persone del Portal tra cui scegliere l'incaricato: utenti del tenant con le strutture dell'organigramma.
+
+    Se il Portal non risponde `available` è falso: l'interfaccia lascia comunque scrivere a mano l'identificativo, come per
+    le persone che non sono nell'organigramma.
+    """
+    try:
+        return {"available": True, "people": await directory.people(tenant_id)}
+    except directory.DirectoryUnavailable as e:
+        return {"available": False, "people": [], "detail": str(e)}
+
+
 @au_router.get("")
 async def list_authorizations(
     user_id: str | None = None, processing_id: str | None = None, asset_id: str | None = None, active_only: bool = False,
+    include_future: bool = False,
     tenant_id: str = Depends(require_tenant), user: TokenPayload = Depends(get_current_user), db: AsyncSession = Depends(get_db),
 ):
     scope = await build_scope(db, tenant_id, user)
-    rows = await AuthorizationService(db).search(
-        tenant_id, user_id=user_id, processing_id=processing_id, asset_id=asset_id, active_only=active_only)
-    return [a.to_dict() for a in rows if not a.processing_activity_id or scope.processing_visible(a.processing_activity_id)]
+    rows = await AuthorizationService(db).search(tenant_id, user_id=user_id, processing_id=processing_id,
+                                                 asset_id=asset_id, active_only=active_only, include_future=include_future)
+    visible = [a for a in rows if not a.processing_activity_id or scope.processing_visible(a.processing_activity_id)]
+    return await _with_names(db, tenant_id, visible)
 
 
 @au_router.post("", status_code=status.HTTP_201_CREATED)
@@ -390,8 +458,17 @@ async def create_authorization(
     if body.processing_activity_id or body.asset_id:
         await assert_permission_for_unit(
             user, db, await _unit_of(db, tenant_id, body.processing_activity_id, body.asset_id), "authorization.create")
+    if body.valid_from is None or body.authorization_profile_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "valid_from e authorization_profile_id sono obbligatori")
+    svc = AuthorizationService(db)
+    fields = body.model_dump()
+    existing = await svc.find_registered(tenant_id, fields)
+    if existing is not None:              # stessa concessione già registrata dal sistema esterno: nessun duplicato
+        response.status_code = status.HTTP_200_OK
+        response.headers["ETag"] = etag_of(existing)
+        return existing.to_dict()
     try:
-        auth = await AuthorizationService(db).create(tenant_id, _uid(user), **body.model_dump())
+        auth = await svc.create(tenant_id, _uid(user), **fields)
     except ComplianceError as e:
         raise _http(e)
     response.headers["ETag"] = etag_of(auth)
@@ -406,7 +483,7 @@ async def get_authorization(
     auth = await AuthorizationService(db).get(tenant_id, auth_id)
     await _auth_guard(db, tenant_id, user, auth)
     response.headers["ETag"] = etag_of(auth)
-    return auth.to_dict()
+    return (await _with_names(db, tenant_id, [auth]))[0]
 
 
 @au_router.patch("/{auth_id}")
@@ -416,12 +493,15 @@ async def update_authorization(
     db: AsyncSession = Depends(get_db),
 ):
     svc = AuthorizationService(db)
-    await _auth_guard(db, tenant_id, user, await svc.get(tenant_id, auth_id), "authorization.edit", version)
-    if body.processing_activity_id or body.asset_id:
-        await assert_permission_for_unit(
-            user, db, await _unit_of(db, tenant_id, body.processing_activity_id, body.asset_id), "authorization.edit")
+    current = await svc.get(tenant_id, auth_id)
+    await _auth_guard(db, tenant_id, user, current, "authorization.edit", version)
+    fields = body.model_dump(exclude_unset=True)
+    processing_id = fields.get("processing_activity_id", current.processing_activity_id)
+    asset_id = fields.get("asset_id", current.asset_id)
+    if processing_id or asset_id:
+        await assert_permission_for_unit(user, db, await _unit_of(db, tenant_id, processing_id, asset_id), "authorization.edit")
     try:
-        auth = await svc.update(tenant_id, auth_id, _uid(user), **body.model_dump())
+        auth = await svc.update(tenant_id, auth_id, _uid(user), **fields)
     except (ComplianceError, ComplianceNotFound) as e:
         raise _http(e)
     response.headers["ETag"] = etag_of(auth)
@@ -430,14 +510,14 @@ async def update_authorization(
 
 @au_router.post("/{auth_id}/revoke")
 async def revoke_authorization(
-    auth_id: str, body: ReasonIn, response: Response, tenant_id: str = Depends(require_tenant),
+    auth_id: str, body: RevokeIn, response: Response, tenant_id: str = Depends(require_tenant),
     version: int = Depends(require_if_match), user: TokenPayload = Depends(require_permission("authorization.edit")),
     db: AsyncSession = Depends(get_db),
 ):
     svc = AuthorizationService(db)
     await _auth_guard(db, tenant_id, user, await svc.get(tenant_id, auth_id), "authorization.edit", version)
     try:
-        auth = await svc.revoke(tenant_id, auth_id, _uid(user), body.reason)
+        auth = await svc.revoke(tenant_id, auth_id, _uid(user), body.reason or body.revoked_reason or "", body.revocation_reference)
     except (ComplianceError, ComplianceNotFound) as e:
         raise _http(e)
     response.headers["ETag"] = etag_of(auth)

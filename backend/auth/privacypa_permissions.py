@@ -19,7 +19,7 @@ from backend.auth.portal_jwt import TokenPayload, get_current_user
 from backend.auth.privacypa_authz import (
     assert_role_for_unit,
     is_portal_global_or_tenant_admin,
-    require_tenant,
+    tenant_of,
 )
 from backend.db.database import get_db
 from backend.models.privacypa_approvals import TenantPolicy
@@ -33,8 +33,10 @@ GOVERNANCE = ADMINS + (R.PRIVACY_MANAGER, R.DPO)
 # Registro trattamenti: storicamente senza ICT e RTD.
 REGISTER_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT, R.OPERATOR)
 WRITERS = REGISTER_WRITERS + (R.ICT, R.RTD)
-# L'account di servizio dei connettori non è un utente: vede solo `integration.*` (§ connettori), mai gli altri moduli.
-EVERYONE = tuple(r for r in R if r != R.INTEGRATION)
+# Gli account di servizio non sono utenti: vedono solo i moduli a cui sono destinati (`integration.*` per i connettori,
+# `access.*` e il registro degli autorizzati per l'HelpDesk), mai gli altri. Non si aggiungono ad altri permessi per ente.
+SERVICE_ROLES = (R.INTEGRATION, R.INTEGRATION_HELPDESK)
+EVERYONE = tuple(r for r in R if r not in SERVICE_ROLES)
 IMPORTERS = GOVERNANCE
 AUDIT_READERS = GOVERNANCE + (R.AUDITOR,)
 # Violazioni e richieste degli interessati sono dati sensibili: non li vedono operatori e sola lettura (§10).
@@ -46,8 +48,10 @@ AUDIT_PLANNERS = GOVERNANCE + (R.AUDITOR,)
 TRAINING_MANAGERS = GOVERNANCE + (R.PRIVACY_REFERENT,)
 CUSTOMFIELD_ADMINS = ADMINS + (R.PRIVACY_MANAGER,)
 COMMENTERS = tuple(r for r in EVERYONE if r != R.READ_ONLY)
-AUTHORIZATION_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT)
+AUTHORIZATION_WRITERS = GOVERNANCE + (R.MANAGER, R.PRIVACY_REFERENT, R.INTEGRATION_HELPDESK)
 AUTHORIZATION_VIEWERS = AUTHORIZATION_WRITERS + (R.ICT, R.RTD, R.AUDITOR)
+# Profili di accesso: li gestisce il privacy manager, non chi registra le concessioni (l'HelpDesk non allarga un profilo).
+PROFILE_MANAGERS = ADMINS + (R.PRIVACY_MANAGER,)
 DPO_VIEWERS = ADMINS + (R.DPO, R.PRIVACY_MANAGER, R.AUDITOR)
 QUERY_EXPORTERS = AUDIT_READERS + (R.MANAGER,)
 INTEGRATION_READERS = GOVERNANCE + (R.INTEGRATION,)
@@ -86,7 +90,10 @@ DEFAULT_MODULES: dict[str, dict[str, tuple[R, ...]]] = {
         generate=GOVERNANCE, review_privacy=GOVERNANCE, review_ict=ADMINS + (R.ICT, R.RTD), review_dpo=(R.DPO,),
     ),
     "training": _module(EVERYONE, create=TRAINING_MANAGERS, edit=TRAINING_MANAGERS),
-    "authorization": _module(AUTHORIZATION_VIEWERS, create=AUTHORIZATION_WRITERS, edit=AUTHORIZATION_WRITERS, delete=GOVERNANCE),
+    "authorization": _module(AUTHORIZATION_VIEWERS, create=AUTHORIZATION_WRITERS, edit=AUTHORIZATION_WRITERS, delete=GOVERNANCE,
+                             administer=PROFILE_MANAGERS),
+    # Richieste di accesso dall'HelpDesk: catalogo e valutazioni (view), invio (create), decisione sui casi non standard (approve).
+    "access": _module(GOVERNANCE + (R.INTEGRATION_HELPDESK,), create=ADMINS + (R.INTEGRATION_HELPDESK,), approve=ADMINS + (R.PRIVACY_MANAGER,)),
     "opinion": _module(EVERYONE, create=WRITERS, edit=WRITERS, approve=(R.DPO,)),
     "dpo": _module(DPO_VIEWERS),
     "report": _module(AUDIT_READERS, edit=GOVERNANCE, approve=GOVERNANCE, reopen=GOVERNANCE),
@@ -118,7 +125,7 @@ DEFAULT_MATRIX: dict[str, tuple[R, ...]] = {
 # Non modificabili per ente: evitano di perdere l'accesso all'amministrazione o di delegarla.
 LOCKED_PERMISSIONS = frozenset({
     "roles.administer", "policy.administer", "outbox.view", "outbox.administer", "export.view", "export.administer",
-    "webhook.view", "webhook.administer", "integration.view", "integration.create",
+    "webhook.view", "webhook.administer", "integration.view", "integration.create", "access.create",
 })
 
 
@@ -138,6 +145,9 @@ def validate_overrides(overrides: dict[str, list[str]]) -> dict[str, list[str]]:
             wanted = {R(r) for r in roles}
         except ValueError as e:
             raise ValueError(f"Ruolo non valido per {code}: {e}") from None
+        extra_services = (wanted - set(DEFAULT_MATRIX[code])) & set(SERVICE_ROLES)
+        if extra_services:
+            raise ValueError(f"Gli account di servizio non si aggiungono al permesso {code}")
         wanted |= set(ADMINS)
         ordered = [r.value for r in R if r in wanted]
         if set(ordered) != {r.value for r in DEFAULT_MATRIX[code]}:
@@ -169,7 +179,7 @@ async def assert_permission(user: TokenPayload, db: AsyncSession, code: str) -> 
     """403 se l'utente non ha, con nessun ruolo e a nessun scope, il permesso a livello ente."""
     if is_portal_global_or_tenant_admin(user):
         return
-    tenant_id = require_tenant(user)
+    tenant_id = tenant_of(user)
     allowed = set(await roles_for(db, tenant_id, code))
     assignments = await IdentityService(db).list_user_assignments(tenant_id, user.sub or user.email, active_only=True)
     if not ({a.role_code for a in assignments} & allowed):
@@ -182,7 +192,7 @@ async def assert_permission_for_unit(
     """Il permesso deve valere sulla struttura del record (il ruolo è legato al proprio scope, §9.3)."""
     if is_portal_global_or_tenant_admin(user):
         return
-    roles = await roles_for(db, require_tenant(user), code)
+    roles = await roles_for(db, tenant_of(user), code)
     try:
         await assert_role_for_unit(user, db, unit_id, *roles)
     except HTTPException:

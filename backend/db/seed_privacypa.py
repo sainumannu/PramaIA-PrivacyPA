@@ -36,6 +36,7 @@ _ROLE_CATALOG = [
     (PrivacyRoleCode.AUDITOR, "Auditor", "Accesso di sola verifica per finalità di audit."),
     (PrivacyRoleCode.READ_ONLY, "Sola lettura", "Accesso in sola lettura."),
     (PrivacyRoleCode.INTEGRATION, "Integrazione", "Account di servizio di un sistema esterno: legge lo snapshot dei trattamenti e invia eventi."),
+    (PrivacyRoleCode.INTEGRATION_HELPDESK, "Integrazione HelpDesk", "Account di servizio dell'HelpDesk: valuta le richieste di accesso e registra concessioni e revoche. Solo account di servizio (app:...), ambito intero ente."),
 ]
 
 _LEGAL_BASIS_CATALOG = [

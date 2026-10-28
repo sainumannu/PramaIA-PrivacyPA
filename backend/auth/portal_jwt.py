@@ -61,11 +61,12 @@ def decode_portal_token(token: str) -> TokenPayload:
         )
     
     try:
+        # `aud` si verifica sotto: i token senza destinatario (utenti, servizi verso il Portal) restano validi.
         payload = jwt.decode(
             token,
             jwt_secret,
             algorithms=["HS256"],
-            options={"require": ["sub", "exp", "iss"]},
+            options={"require": ["sub", "exp", "iss"], "verify_aud": False},
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
@@ -82,7 +83,19 @@ def decode_portal_token(token: str) -> TokenPayload:
     if payload.get("iss") != PORTAL_ISSUER:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token not issued by PramaIA Portal")
 
+    # Token di servizio emesso per chiamare un'app precisa (collegamento tra moduli del Portal): deve essere questa.
+    audience = payload.get("aud")
+    if audience is not None:
+        allowed = audience if isinstance(audience, list) else [audience]
+        if own_app_id() not in allowed:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token issued for another application")
+
     return TokenPayload(payload)
+
+
+def own_app_id() -> str:
+    """`app_id` con cui l'app è registrata nel Portal (destinatario dei token con `aud`)."""
+    return os.getenv("APP_ID") or "PramaIA-PrivacyManager"
 
 
 def get_current_user(

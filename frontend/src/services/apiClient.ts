@@ -10,6 +10,20 @@ class ApiError extends Error {
   }
 }
 
+// Testo leggibile dell'errore: gli errori di validazione (422) hanno in `detail` un elenco di oggetti, che altrimenti
+// diventerebbe «[object Object]». Per ogni campo: nome e messaggio.
+export function errorText(detail: unknown, fallback: string): string {
+  if (Array.isArray(detail)) {
+    const lines = detail.map((d: any) => {
+      const field = Array.isArray(d?.loc) ? d.loc.filter((p: unknown) => p !== 'body').join('.') : '';
+      return field ? `${field}: ${d?.msg ?? ''}` : String(d?.msg ?? d);
+    });
+    return lines.join('\n') || fallback;
+  }
+  if (detail && typeof detail === 'object') return (detail as any).message || JSON.stringify(detail);
+  return detail ? String(detail) : fallback;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = authGuard.getToken();
   const headers: Record<string, string> = {
@@ -39,7 +53,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: response.statusText }));
-      const errorMsg = err.detail || 'Request failed';
+      const errorMsg = errorText(err.detail, 'Request failed');
       logger.apiError(method, path, errorMsg);
       throw new ApiError(response.status, errorMsg);
     }
@@ -84,7 +98,7 @@ export const apiClient = {
     }
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new ApiError(response.status, err.detail || 'Upload failed');
+      throw new ApiError(response.status, errorText(err.detail, 'Upload failed'));
     }
     return response.json();
   },
@@ -101,7 +115,7 @@ export const apiClient = {
     }
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new ApiError(response.status, err.detail || 'Download failed');
+      throw new ApiError(response.status, errorText(err.detail, 'Download failed'));
     }
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);

@@ -49,11 +49,13 @@ async def get_integrations(db: AsyncSession, tenant_id: str) -> dict:
     return {
         "retention_category": (stored.get("retention_category") or None),
         "external_events_retention_months": int(stored.get("external_events_retention_months") or 24),
+        # Richieste di accesso: formazione mancante o scaduta come FAIL (revisione del privacy manager) invece di WARNING.
+        "access_training_blocking": bool(stored.get("access_training_blocking", False)),
     }
 
 
 def validate_integrations(values: dict) -> dict:
-    unknown = set(values) - {"retention_category", "external_events_retention_months"}
+    unknown = set(values) - {"retention_category", "external_events_retention_months", "access_training_blocking"}
     if unknown:
         raise ValueError(f"Parametri sconosciuti: {', '.join(sorted(unknown))}")
     category = values.get("retention_category")
@@ -64,7 +66,10 @@ def validate_integrations(values: dict) -> dict:
     months = values.get("external_events_retention_months")
     if months is not None and (isinstance(months, bool) or not isinstance(months, int) or not 1 <= months <= 120):
         raise ValueError("La conservazione degli eventi ricevuti va da 1 a 120 mesi")
-    return {"retention_category": category or None, "external_events_retention_months": months}
+    blocking = values.get("access_training_blocking")
+    if blocking is not None and not isinstance(blocking, bool):
+        raise ValueError("access_training_blocking è vero o falso")
+    return {"retention_category": category or None, "external_events_retention_months": months, "access_training_blocking": bool(blocking)}
 
 
 def rule_days(unit: RetentionUnit, value: int | None, today: date) -> int | None:

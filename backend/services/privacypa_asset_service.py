@@ -13,6 +13,7 @@ _EDITABLE = {
     "cloud_service", "hosting_country", "data_location_notes", "authentication_type",
     "mfa_supported", "logging_supported", "encryption_at_rest", "encryption_in_transit",
     "backup_enabled", "lifecycle_status", "go_live_date", "retirement_date", "confidentiality_level",
+    "data_owner_name", "data_owner_role", "data_owner_user_id",
 }
 
 

@@ -12,6 +12,7 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface Organization {
   id: string;
@@ -40,6 +41,8 @@ export const OrganizationEntityPanel: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [exists, setExists] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  // Non presente nel modulo: si rimanda com'era, altrimenti il PUT lo cancellerebbe
+  const [address, setAddress] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -48,6 +51,7 @@ export const OrganizationEntityPanel: React.FC = () => {
     try {
       const org = await apiClient.get<Organization>('/api/privacypa/organization');
       setExists(true);
+      setAddress((org as any).address ?? null);
       setForm({
         name: org.name || '',
         tax_code: org.tax_code || '',
@@ -86,6 +90,7 @@ export const OrganizationEntityPanel: React.FC = () => {
         pec: form.pec || null,
         dpo_name: form.dpo_name || null,
         dpo_contact: form.dpo_contact || null,
+        address,
       });
       setExists(true);
       setSuccess(t('organization.entity.saved') || 'Ente salvato con successo');
@@ -106,11 +111,7 @@ export const OrganizationEntityPanel: React.FC = () => {
 
   return (
     <Paper sx={{ p: 3 }}>
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {success && (
         <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 2 }}>
           {success}

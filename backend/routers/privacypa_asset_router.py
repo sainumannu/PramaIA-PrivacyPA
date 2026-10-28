@@ -40,6 +40,10 @@ class AssetUpsert(BaseModel):
     go_live_date: date | None = None
     retirement_date: date | None = None
     confidentiality_level: ConfidentialityLevel = ConfidentialityLevel.INTERNAL
+    # Responsabile della banca dati (proposto dall'HelpDesk negli estremi delle richieste di accesso).
+    data_owner_name: str | None = Field(None, max_length=255)
+    data_owner_role: str | None = Field(None, max_length=255)
+    data_owner_user_id: str | None = Field(None, max_length=100)
 
     @field_validator("confidentiality_level")
     @classmethod

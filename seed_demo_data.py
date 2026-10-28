@@ -906,11 +906,16 @@ async def seed_authorizations(session) -> str | None:
     if await _count(session, AuthorizationProfile):
         return None
     svc = AuthorizationService(session)
-    profile = await svc.create_profile(
-        TENANT, ACTOR, "Operatore anagrafe", "Consultazione e aggiornamento delle schede anagrafiche.",
-    )
     t_anag = await _proc(session, "Anagrafe della popolazione residente")
     anpr = await _asset(session, "ANPR / Anagrafe")
+    # Profilo di accesso completo: lo usa anche l'HelpDesk nelle richieste di accesso.
+    profile = await svc.create_profile(
+        TENANT, ACTOR, name="Operatore anagrafe", code="OPERATORE_ANAGRAFE",
+        description="Consultazione e aggiornamento delle schede anagrafiche.",
+        asset_id=anpr.id if anpr else None, allowed_operations=["READ", "UPDATE"],
+        allowed_scope_types=["ORGANIZATIONAL_UNIT", "ASSIGNED_CASES"],
+        processing_activity_ids=[t_anag.id] if t_anag else [], max_duration_days=365,
+    )
     if t_anag:
         await svc.create(
             TENANT, ACTOR, user_id=USER_FABRIZIO, authorization_profile_id=profile.id,

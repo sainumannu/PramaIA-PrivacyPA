@@ -103,6 +103,19 @@ export const authGuard = {
     return !!token && !isTokenExpired(token);
   },
 
+  /** Sostituisce il token (cambio di tenant: il Portal ne emette uno nuovo). False se il token non è leggibile. */
+  setToken(token: string): boolean {
+    const user = parseJwtPayload(token);
+    if (!user) return false;
+    const previous = this.getCurrentUser();
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify({
+      ...user,
+      preferred_language: user.preferred_language || previous?.preferred_language,
+    }));
+    return true;
+  },
+
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

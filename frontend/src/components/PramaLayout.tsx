@@ -19,9 +19,11 @@ import {
   ListItemText,
   ListSubheader,
   Divider,
+  Snackbar,
+  Alert,
   useMediaQuery,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import LogoutIcon from '@mui/icons-material/Logout';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
@@ -68,6 +70,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 import { NotificationBell } from './NotificationBell';
 import { useTranslation } from '../i18n/useTranslation';
 import { usePermissions } from '../services/permissions';
+import { useTenant } from '../services/tenantContext';
 
 const DRAWER_WIDTH = 272;
 
@@ -93,6 +96,20 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { can } = usePermissions();
+  const { selectedTenant, switchTenant, availableTenants, isLoadingTenants } = useTenant();
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchFailed, setSwitchFailed] = useState(false);
+
+  // Un token = un tenant: il cambio chiede al Portal un nuovo token e ricarica la pagina.
+  const handleTenantChange = async (tenantId: string) => {
+    setIsSwitching(true);
+    try {
+      await switchTenant(tenantId);
+    } catch {
+      setSwitchFailed(true);
+      setIsSwitching(false);
+    }
+  };
 
   const sections = useMemo(() => {
     const work: NavItem[] = [
@@ -237,10 +254,13 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
       <AppBar
         position="fixed"
         elevation={0}
+        // Colori dal tema: con un fondo fisso scuro il testo dei temi chiari (scuro) non si leggeva
         sx={{
-          backgroundColor: 'rgba(26, 26, 46, 0.92)',
+          backgroundColor: (th) => alpha(th.palette.background.paper, 0.92),
+          color: 'text.primary',
           backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: 1,
+          borderColor: 'divider',
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { md: `${DRAWER_WIDTH}px` },
         }}
@@ -268,33 +288,47 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
               label={user.display_name || user.email}
               size="small"
               variant="outlined"
-              sx={{ borderColor: 'rgba(255,255,255,0.2)', maxWidth: { xs: 120, sm: 220 } }}
+              sx={{ maxWidth: { xs: 120, sm: 220 } }}
             />
           )}
           {user?.is_admin && (
             <Chip label="Admin" size="small" color="primary" sx={{ height: 20, fontSize: '0.65rem' }} />
           )}
 
+          <FormControl size="small" sx={{ minWidth: 180, display: { xs: 'none', sm: 'flex' } }}>
+            <InputLabel id="tenant-select-label" shrink>{t('header.tenant')}</InputLabel>
+            <Select
+              labelId="tenant-select-label"
+              label={t('header.tenant')}
+              notched
+              value={selectedTenant || ''}
+              onChange={(event) => handleTenantChange(event.target.value)}
+              displayEmpty
+              disabled={isLoadingTenants || isSwitching}
+              inputProps={{ 'aria-label': t('header.tenant') }}
+              renderValue={(value) => availableTenants.find((tenant) => tenant.id === value)?.name || value || t('header.tenant_none')}
+              startAdornment={<BusinessIcon sx={{ fontSize: 18, mr: 0.5, color: 'text.secondary' }} />}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              {isLoadingTenants ? (
+                <MenuItem disabled><em>{t('header.tenant_loading')}</em></MenuItem>
+              ) : (
+                availableTenants.map((tenant) => <MenuItem key={tenant.id} value={tenant.id}>{tenant.name}</MenuItem>)
+              )}
+            </Select>
+          </FormControl>
+
           <FormControl size="small" sx={{ minWidth: 110, display: { xs: 'none', sm: 'flex' } }}>
-            <InputLabel id="theme-select-label" sx={{ color: '#fff', '&.Mui-focused': { color: '#fff' } }}>
-              Theme
-            </InputLabel>
+            <InputLabel id="theme-select-label">{t('header.theme')}</InputLabel>
             <Select
               labelId="theme-select-label"
               value={themeName}
-              label="Theme"
+              label={t('header.theme')}
               onChange={(event) => setThemeName(event.target.value as ThemeName)}
-              sx={{
-                color: '#fff',
-                fontWeight: 500,
-                '.MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.6)' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#fff' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' },
-                '.MuiSvgIcon-root': { color: '#fff' },
-              }}
+              sx={{ fontSize: '0.85rem' }}
             >
               {themeOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                <MenuItem key={option.value} value={option.value}>{t(`header.theme_${option.value}`)}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -302,6 +336,14 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
           <NotificationBell />
           <LanguageSwitcher variant="outlined" size="small" />
         </Toolbar>
+        <Snackbar
+          open={switchFailed}
+          autoHideDuration={6000}
+          onClose={() => setSwitchFailed(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert severity="error" variant="filled" onClose={() => setSwitchFailed(false)}>{t('header.tenant_switch_failed')}</Alert>
+        </Snackbar>
       </AppBar>
 
       <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
@@ -325,7 +367,8 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
             '& .MuiDrawer-paper': {
               width: DRAWER_WIDTH,
               boxSizing: 'border-box',
-              borderRight: '1px solid rgba(255,255,255,0.08)',
+              borderRight: 1,
+              borderColor: 'divider',
             },
           }}
         >
@@ -350,7 +393,8 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
           sx={{
             py: 2,
             textAlign: 'center',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
+            borderTop: 1,
+            borderColor: 'divider',
             backgroundColor: 'background.paper',
           }}
         >

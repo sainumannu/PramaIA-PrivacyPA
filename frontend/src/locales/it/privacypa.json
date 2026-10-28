@@ -3,7 +3,8 @@
     "actions": "Azioni",
     "edit": "Modifica",
     "save": "Salva",
-    "cancel": "Annulla"
+    "cancel": "Annulla",
+    "fill_required": "Compilare i campi obbligatori (contrassegnati con *)."
   },
   "organization": {
     "title": "Organizzazione",
@@ -36,7 +37,7 @@
       "type": "Tipo",
       "parent": "Struttura padre",
       "none": "— nessuna (radice) —",
-      "manager": "Responsabile (user id)",
+      "manager": "Responsabile",
       "no_units": "Nessuna struttura organizzativa censita",
       "fields_required": "Codice e denominazione sono obbligatori",
       "created": "Struttura creata",
@@ -58,7 +59,7 @@
       "code": "Codice",
       "name": "Nome",
       "description": "Descrizione",
-      "user_id": "ID utente (email/sub Portal)",
+      "user_id": "Utente",
       "role": "Ruolo",
       "scope_type": "Ambito",
       "scope_unit": "Struttura di riferimento",
@@ -79,7 +80,8 @@
         "UNIT": "Singola struttura",
         "SUBTREE": "Sottoalbero organizzativo",
         "RECORD": "Singolo record"
-      }
+      },
+      "user_hint": "Scegliere dall'organigramma del Portal; per un account di servizio scrivere l'identificativo (es. app:pramaia-helpdesk)."
     }
   },
   "dashboard": {
@@ -153,7 +155,9 @@
       "confidentiality": "Livello di riservatezza",
       "automated_decision": "Decisione automatizzata",
       "profiling": "Profilazione",
-      "mandatory_provision": "Conferimento obbligatorio"
+      "mandatory_provision": "Conferimento obbligatorio",
+      "owner": "Titolare del trattamento (dirigente)",
+      "privacy_referent": "Referente privacy"
     },
     "status": {
       "DRAFT": "Bozza",
@@ -169,7 +173,16 @@
       "CONFIDENTIAL": "Riservato",
       "RESTRICTED": "Strettamente riservato",
       "HIGHLY_RESTRICTED": "Altamente riservato"
-    }
+    },
+    "sections": {
+      "general": "Dati generali",
+      "purposes": "Finalità e basi giuridiche",
+      "data": "Interessati e dati",
+      "systems": "Sistemi e terze parti",
+      "other": "Date, riservatezza e caratteristiche"
+    },
+    "links_failed": "Il trattamento è salvato, ma i collegamenti (sistemi, responsabili, destinatari) no. Correggere e salvare di nuovo:",
+    "after_create_hint": "Regole di conservazione e flussi di dati si aggiungono dopo il primo salvataggio."
   },
   "catalogs": {
     "legal_basis": "Basi giuridiche GDPR",
@@ -214,7 +227,12 @@
       "HYBRID": "Ibrido",
       "SAAS": "SaaS",
       "OTHER": "Altro"
-    }
+    },
+    "data_owner": "Responsabile della banca dati",
+    "data_owner_hint": "Chi autorizza gli accessi: l'HelpDesk lo propone negli estremi delle richieste di accesso.",
+    "data_owner_name": "Nome",
+    "data_owner_role": "Ruolo (es. Dirigente Servizi Demografici)",
+    "data_owner_user_id": "Persona nel Portal (facoltativo)"
   },
   "parties": {
     "title": "Fornitori e responsabili",
@@ -338,7 +356,7 @@
   },
   "approvals": {
     "title": "Approvazioni",
-    "subtitle": "Richieste di approvazione dei trattamenti e delle DPIA. Ogni decisione è legata alla versione inviata in revisione.",
+    "subtitle": "Richieste di approvazione di trattamenti, DPIA, informative e richieste di accesso non standard dall'HelpDesk. Ogni decisione è legata alla versione inviata in revisione.",
     "load_failed": "Caricamento delle approvazioni non riuscito",
     "decided": "Decisione registrata",
     "entity": "Record",
@@ -356,7 +374,8 @@
     "type": {
       "processing_activity": "Trattamento",
       "dpia": "DPIA",
-      "privacy_notice": "Informativa"
+      "privacy_notice": "Informativa",
+      "access_assessment": "Richiesta di accesso"
     },
     "state": {
       "PENDING": "In attesa",
@@ -377,6 +396,26 @@
       "REJECTED": "Respingi",
       "CHANGES_REQUESTED": "Chiedi modifiche",
       "note_required": "La nota è obbligatoria e sarà visibile a chi ha inviato la richiesta."
+    },
+    "on_behalf_of": "per conto di {{user}}",
+    "access": {
+      "temporary": "dal {{from}} al {{to}}",
+      "permanent": "permanente",
+      "ticket": "ticket {{ref}} (versione {{version}})",
+      "subject": "Persona",
+      "checks": {
+        "PROFILE_APPROVED": "Profilo",
+        "OPERATION_ALLOWED": "Operazioni",
+        "SCOPE_ALLOWED": "Ambito",
+        "TEMPORARY_ACCESS_POLICY": "Durata",
+        "TRAINING_VALID": "Formazione",
+        "ALREADY_AUTHORIZED": "Già autorizzato",
+        "PRIVACY_INSTRUCTIONS_VALID": "Istruzioni",
+        "SYSTEM_REGISTERED": "Sistema",
+        "SUBJECT_RESOLVED": "Persona",
+        "CURRENT_AUTHORIZATION": "Autorizzazione attuale",
+        "CHANGE_REDUCES_PRIVILEGES": "Riduzione dei privilegi"
+      }
     }
   },
   "policy": {
@@ -413,7 +452,8 @@
       "OPERATOR": "Operatore",
       "AUDITOR": "Auditor",
       "READ_ONLY": "Sola lettura",
-      "INTEGRATION": "Integrazione (account di servizio)"
+      "INTEGRATION": "Integrazione (account di servizio)",
+      "INTEGRATION_HELPDESK": "Integrazione HelpDesk (account di servizio)"
     },
     "modules": {
       "processing": "Registro dei trattamenti",
@@ -432,7 +472,8 @@
       "roles": "Ruoli utente",
       "policy": "Policy di ente",
       "query": "Interrogazioni",
-      "webhook": "Webhook"
+      "webhook": "Webhook",
+      "access": "Richieste di accesso (HelpDesk)"
     },
     "actions": {
       "view": "Visualizzare",
@@ -746,7 +787,7 @@
       "aware_at": "Momento in cui l'ente ne è venuto a conoscenza. Si corregge solo con una motivazione, e l'originale resta visibile.",
       "requester_reference": "Riferimento opaco (es. numero di protocollo): non compare in audit, notifiche o eventi.",
       "validity_months": "Mesi di validità dopo il completamento; vuoto = senza scadenza. Determina il rinnovo.",
-      "user_ids": "Identificativi degli utenti, separati da virgola o a capo.",
+      "user_ids": "Scegliere le persone dall'organigramma del Portal; per chi non c'è scrivere l'identificativo e premere Invio.",
       "opinion_notes": "Il contesto della richiesta. Non compare in audit né negli eventi.",
       "go_live_date": "Solo alla decisione di approvazione; vuoto = oggi. Da qui si calcola la revisione post-implementazione (6 mesi).",
       "tag_color": "Facoltativo, formato #RRGGBB.",
@@ -788,7 +829,7 @@
       },
       "authProfiles": {
         "title": "Profili di autorizzazione",
-        "subtitle": "Livelli di accesso assegnabili (es. consultazione, modifica, amministrazione)."
+        "subtitle": "Profili di accesso: sistema, operazioni e ambiti ammessi, corsi richiesti e durata massima. L'HelpDesk li usa per valutare le richieste di accesso."
       },
       "opinions": {
         "title": "Pareri del DPO",
@@ -852,7 +893,11 @@
       "label": "Etichetta",
       "key": "Chiave",
       "field_type": "Tipo",
-      "required": "Obbligatorio"
+      "required": "Obbligatorio",
+      "source_ref": "Origine",
+      "asset": "Sistema",
+      "operations": "Operazioni",
+      "max_duration": "Durata massima"
     },
     "fields": {
       "source_type": "Tipo",
@@ -943,7 +988,22 @@
       "options": "Valori ammessi",
       "required": "Obbligatorio",
       "position": "Posizione",
-      "confidentiality_level": "Livello di riservatezza"
+      "confidentiality_level": "Livello di riservatezza",
+      "code": "Codice",
+      "data_category_ids": "Categorie di dati",
+      "allowed_operations": "Operazioni ammesse",
+      "allowed_scope_types": "Ambiti ammessi",
+      "processing_activity_ids": "Trattamenti collegati",
+      "required_training_course_ids": "Corsi richiesti",
+      "max_duration_days": "Durata massima degli accessi temporanei (giorni)",
+      "operations": "Operazioni",
+      "scope": "Ambito",
+      "authorized_by_name": "Autorizzato da",
+      "authorization_reference": "Riferimento dell'autorizzazione",
+      "authorization_date": "Data dell'autorizzazione",
+      "authorization_notes": "Note sull'autorizzazione",
+      "source_ref": "Origine",
+      "revocation_reference": "Estremi della revoca"
     },
     "actions": {
       "start": "Avvia",
@@ -1082,7 +1142,8 @@
         "OPERATOR": "Operatore",
         "AUDITOR": "Auditor",
         "READ_ONLY": "Sola lettura",
-        "INTEGRATION": "Integrazione (account di servizio)"
+        "INTEGRATION": "Integrazione (account di servizio)",
+        "INTEGRATION_HELPDESK": "Integrazione HelpDesk (account di servizio)"
       },
       "opinionEntity": {
         "processing_activity": "Trattamento",
@@ -1149,6 +1210,29 @@
         "INTERNAL": "Interno",
         "RESTRICTED": "Strettamente riservato",
         "HIGHLY_RESTRICTED": "Altamente riservato"
+      },
+      "accessOperation": {
+        "READ": "Lettura",
+        "CREATE": "Inserimento",
+        "UPDATE": "Modifica",
+        "DELETE": "Cancellazione",
+        "EXPORT": "Esportazione",
+        "PRINT": "Stampa",
+        "DOWNLOAD": "Scaricamento",
+        "ADMINISTER": "Amministrazione"
+      },
+      "accessScope": {
+        "ALL_RECORDS": "Tutti i record",
+        "ASSIGNED_CASES": "Pratiche assegnate",
+        "ORGANIZATIONAL_UNIT": "Struttura",
+        "GEOGRAPHIC_AREA": "Area geografica",
+        "SUBJECT_SET": "Insieme di interessati",
+        "CUSTOM": "Personalizzato"
+      },
+      "accessRequestType": {
+        "GRANT": "Concessione",
+        "CHANGE": "Modifica",
+        "REVOKE": "Revoca"
       }
     }
   },
@@ -1390,6 +1474,21 @@
       "active": "In vigore",
       "expired": "Scaduta",
       "revoked": "Revocata"
+    },
+    "forced": "Forzata",
+    "profile_version": "versione {{version}}",
+    "authorization_details": "Estremi dell'autorizzazione",
+    "days": "{{days}} giorni",
+    "hints": {
+      "authorized_by": "Nome e ruolo del responsabile della banca dati",
+      "profile_code": "Codice mostrato nell'HelpDesk, es. OPERATORE_ANAGRAFE",
+      "max_duration": "Vuoto = nessun limite (ammessi anche accessi permanenti)"
+    },
+    "person": {
+      "hint": "Scegliere dall'organigramma del Portal, oppure scrivere nome o identificativo di chi non c'è (es. un esterno).",
+      "not_in_portal": "Persona non presente nel Portal: verrà registrata con il testo scritto.",
+      "unavailable": "Organigramma del Portal non disponibile: scrivere l'identificativo a mano.",
+      "no_unit": "Fuori dall'organigramma"
     }
   },
   "opinions": {
@@ -1788,5 +1887,11 @@
       "dsr_base_months": "Termine di risposta agli interessati (mesi)",
       "dsr_extension_months": "Proroga possibile (mesi)"
     }
+  },
+  "unit_picker": {
+    "privacypa": "Strutture di PrivacyPA",
+    "portal": "Organigramma del Portal (verrà aggiunta a PrivacyPA)",
+    "portal_unavailable": "Organigramma del Portal non raggiungibile: si sceglie tra le strutture di PrivacyPA.",
+    "add_failed": "Impossibile aggiungere la struttura dal Portal"
   }
 }

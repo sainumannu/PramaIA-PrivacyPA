@@ -216,6 +216,8 @@ class IntegrationsIn(BaseModel):
     retention_category: str | None = Field(None, max_length=100)
     # Mesi di conservazione degli eventi ricevuti da sistemi esterni (vuoto = 24).
     external_events_retention_months: int | None = Field(None, ge=1, le=120)
+    # Richieste di accesso dall'HelpDesk: la formazione non valida rende la richiesta non standard.
+    access_training_blocking: bool = False
 
 
 @router.get("/policy/integrations")

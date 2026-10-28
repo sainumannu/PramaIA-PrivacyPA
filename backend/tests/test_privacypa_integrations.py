@@ -361,11 +361,12 @@ async def test_retention_category_setting_is_admin_only_audited_and_validated(en
     c = env["client"]
     assert (await c.get(POLICY, headers=VIDEOPA)).status_code == 403                       # nemmeno l'account di servizio
     first = (await c.get(POLICY, headers=ADMIN)).json()
-    assert first == {"row_version": 0, "values": {"retention_category": None, "external_events_retention_months": 24}}
+    assert first == {"row_version": 0, "values": {"retention_category": None, "external_events_retention_months": 24, "access_training_blocking": False}}
     assert (await c.put(POLICY, json={"retention_category": "IMMAGINI"}, headers=ifm(0, VIDEOPA))).status_code == 403
     assert (await c.put(POLICY, json={"retention_category": "IMMAGINI"}, headers=ADMIN)).status_code == 428      # manca If-Match
     saved = await _set_category(env, "  Immagini di videosorveglianza ")
-    assert saved["values"] == {"retention_category": "Immagini di videosorveglianza", "external_events_retention_months": 24}
+    assert saved["values"] == {"retention_category": "Immagini di videosorveglianza", "external_events_retention_months": 24,
+                               "access_training_blocking": False}
     assert (await c.put(POLICY, json={"retention_category": "x" * 101}, headers=ifm(saved["row_version"], ADMIN))).status_code == 422
     stale = await c.put(POLICY, json={"retention_category": "ALTRA"}, headers=ifm(first["row_version"] or 99, ADMIN))
     assert stale.status_code in (409, 412)

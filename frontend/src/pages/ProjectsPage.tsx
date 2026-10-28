@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Chip, Step, StepLabel, Stepper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { EntityCrudPage, FieldSpec, StatusChip, postAction } from '../components/EntityCrud';
+import { PersonName } from '../components/PortalPeople';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
@@ -93,7 +94,7 @@ export const ProjectsPage: React.FC = () => {
   const { can } = usePermissions();
   const fields: FieldSpec[] = [
     { name: 'title', type: 'text', required: true }, { name: 'description', type: 'textarea' },
-    { name: 'proposing_unit_id', type: 'unit', required: true }, { name: 'project_owner_id', type: 'text', required: true },
+    { name: 'proposing_unit_id', type: 'unit', required: true }, { name: 'project_owner_id', type: 'person', required: true },
     { name: 'supplier_id', type: 'ref', refEndpoint: '/api/privacypa/parties', refLabel: (r) => r.legal_name },
     { name: 'confidentiality_level', type: 'select', options: ['INTERNAL', 'RESTRICTED', 'HIGHLY_RESTRICTED'], enumName: 'confidentiality' },
     ...FLAGS.map((name) => ({ name, type: 'boolean' as const })),
@@ -107,7 +108,7 @@ export const ProjectsPage: React.FC = () => {
         { key: 'code', render: (r) => r.code }, { key: 'title', render: (r) => r.title },
         { key: 'status', render: (r) => <StatusChip enumName="projectStatus" value={r.status} color={r.status === 'CLOSED' ? 'success' : r.status === 'REJECTED' || r.status === 'CANCELLED' ? 'error' : 'default'} /> },
         { key: 'unit', render: (r, units) => units.find((u) => u.id === r.proposing_unit_id)?.name || '—' },
-        { key: 'owner', render: (r) => r.project_owner_id },
+        { key: 'owner', render: (r) => <PersonName id={r.project_owner_id} /> },
         { key: 'dpia', render: (r) => (r.dpia_screening_required ? <Chip size="small" color="warning" label="DPIA" /> : '—') },
         { key: 'go_live', render: (r) => day(r.go_live_date) },
       ]}

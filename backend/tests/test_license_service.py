@@ -64,7 +64,10 @@ def setup_license_files(tmp_path, test_keys, monkeypatch):
     # Scrivi chiave pubblica
     (tmp_path / "license_public_key.pem").write_bytes(public_key)
     
-    return tmp_path, private_key
+    # La cache è condivisa tra le istanze: ogni test parte da zero e non lascia esiti agli altri
+    LicenseService.clear_cache()
+    yield tmp_path, private_key
+    LicenseService.clear_cache()
 
 
 def create_license_token(payload: dict, private_key: bytes) -> str:
@@ -284,3 +287,40 @@ async def test_license_cache(setup_license_files):
     # Force refresh
     result3 = await service.verify_license(force_refresh=True)
     assert result3.valid is True
+
+
+
+# TEST 10: Cache condivisa tra le istanze
+@pytest.mark.asyncio
+async def test_license_cache_is_shared_between_instances(setup_license_files, monkeypatch):
+    """Test: ogni richiesta crea un LicenseService nuovo, la cache deve valere per tutti"""
+    tmp_path, private_key = setup_license_files
+    
+    (tmp_path / "license.jwt").write_text(create_license_token(create_valid_payload(), private_key))
+    assert (await LicenseService().verify_license()).valid is True
+    
+    # Senza file la seconda istanza riesce solo usando la cache
+    (tmp_path / "license.jwt").unlink()
+    assert (await LicenseService().verify_license()).valid is True
+    
+    # Un modulo non concesso non passa per la cache
+    result = await LicenseService().verify_license(required_module="anagrafe")
+    assert result.code == "MODULE_NOT_LICENSED"
+    assert (await LicenseService().verify_license(required_module="albo")).valid is True
+    
+    # A cache scaduta la licenza si rilegge: il file non c'è più
+    monkeypatch.setattr(LicenseService, "CACHE_TTL_SECONDS", 0)
+    assert (await LicenseService().verify_license()).code == "LICENSE_MISSING"
+
+
+# TEST 11: Modulo jolly
+@pytest.mark.asyncio
+async def test_wildcard_grants_every_module(setup_license_files):
+    """Test: "*" nella lista dei moduli concede qualsiasi modulo"""
+    tmp_path, private_key = setup_license_files
+    
+    payload = create_valid_payload()
+    payload["entitlements"]["modules"] = ["*"]
+    (tmp_path / "license.jwt").write_text(create_license_token(payload, private_key))
+    
+    assert (await LicenseService().verify_license(required_module="protocollo")).valid is True

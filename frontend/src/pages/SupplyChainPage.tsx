@@ -13,11 +13,14 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { SinglePick } from '../components/UnitPicker';
 
 interface Party { id: string; code: string; legal_name: string }
 interface Contract {
   id: string; row_version: number; code: string; party_id: string; title: string; cig: string | null; cup: string | null;
   start_date: string | null; end_date: string | null; renewal_date: string | null; status: string;
+  organizational_unit_id: string | null; document_id: string | null;
 }
 interface Subprocessor {
   id: string; row_version: number; processor_party_id: string; subprocessor_party_id: string; service_description: string;
@@ -91,6 +94,9 @@ export const SupplyChainPage: React.FC = () => {
       party_id: cForm.party_id, title: cForm.title.trim(), cig: cForm.cig.trim() || null, cup: cForm.cup.trim() || null,
       start_date: cForm.start_date || null, end_date: cForm.end_date || null, renewal_date: cForm.renewal_date || null,
       status: cForm.status,
+      // Il PATCH sostituisce il record: unità e documento (non nel modulo) si rimandano com'erano.
+      organizational_unit_id: contractDialog.editing?.organizational_unit_id ?? null,
+      document_id: contractDialog.editing?.document_id ?? null,
     };
     try {
       const { editing } = contractDialog;
@@ -154,12 +160,8 @@ export const SupplyChainPage: React.FC = () => {
   };
 
   const partySelect = (label: string, value: string, onChange: (v: string) => void, disabled = false) => (
-    <FormControl fullWidth disabled={disabled}>
-      <InputLabel>{label}</InputLabel>
-      <Select label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-        {parties.map((p) => <MenuItem key={p.id} value={p.id}>{p.code} — {p.legal_name}</MenuItem>)}
-      </Select>
-    </FormControl>
+    <SinglePick label={label} value={value} onChange={onChange} disabled={disabled}
+      items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))} />
   );
 
   return (
@@ -176,7 +178,7 @@ export const SupplyChainPage: React.FC = () => {
           )}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('supply.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
           <Tab label={t('supply.tabs.contracts')} />
           <Tab label={t('supply.tabs.subprocessors')} />

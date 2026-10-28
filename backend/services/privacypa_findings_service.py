@@ -97,6 +97,7 @@ class Hit:
     due_date: date | None = None
     params: dict = field(default_factory=dict)
     severity: Severity | None = None  # se assente, quella della regola
+    event_data: dict = field(default_factory=dict)  # dati aggiunti all'evento di apertura (outbox/webhook, solo chiavi ammesse)
 
 
 class Context:
@@ -598,15 +599,24 @@ async def _training_renewal_due(ctx: Context, params: dict) -> list[Hit]:
 
 
 async def _authorization_expired(ctx: Context, params: dict) -> list[Hit]:
+    # Gli accessi registrati dall'HelpDesk hanno una tolleranza: alla scadenza l'HelpDesk apre da sé il ticket di revoca.
+    grace = timedelta(days=int(params.get("helpdesk_grace_days") or 0))
     rows = (await ctx.db.execute(select(Authorization).where(
         Authorization.tenant_id == ctx.tenant_id, Authorization.revoked_at.is_(None), Authorization.valid_to.is_not(None),
         Authorization.valid_to < ctx.today))).scalars().all()
-    return [
-        Hit("authorization", a.id, f"L'autorizzazione di {a.user_id} è scaduta il {a.valid_to.isoformat()} e non risulta revocata",
+    hits = []
+    for a in rows:
+        helpdesk = a.source_module == "HELPDESK"
+        if helpdesk and a.valid_to >= ctx.today - grace:
+            continue
+        hits.append(Hit(
+            "authorization", a.id, f"L'autorizzazione di {a.user_id} è scaduta il {a.valid_to.isoformat()} e non risulta revocata",
             processing_id=a.processing_activity_id, due_date=a.valid_to,
-            params={"user": a.user_id, "date": a.valid_to.isoformat()})
-        for a in rows
-    ]
+            params={"user": a.user_id, "date": a.valid_to.isoformat()},
+            severity=Severity.MEDIUM if helpdesk else None,
+            event_data={"source_ref": a.source_ref, "valid_to": a.valid_to.isoformat()} if helpdesk else {},
+        ))
+    return hits
 
 
 async def _authorization_review_needed(ctx: Context, params: dict) -> list[Hit]:
@@ -850,7 +860,8 @@ RULES: tuple[RuleSpec, ...] = (
              "Ultimo completamento di un corso con validità che scade entro {horizon_days} giorni, senza assegnazione aperta.",
              _L, _training_renewal_due, {"horizon_days": 60}),
     RuleSpec("AUTHORIZATION_EXPIRED_NOT_REVOKED", "Autorizzazione scaduta non revocata", "Un'autorizzazione con validità terminata non è stata revocata (§45).",
-             "Autorizzazione non revocata con data di fine precedente a oggi.", _H, _authorization_expired),
+             "Autorizzazione non revocata con data di fine precedente a oggi; per quelle registrate dall'HelpDesk, "
+             "scadute da più di {helpdesk_grace_days} giorni.", _H, _authorization_expired, {"helpdesk_grace_days": 3}),
     RuleSpec("AUTHORIZATION_REVIEW_UNIT_CHANGED", "Autorizzazione da verificare", "La struttura del trattamento è cambiata dopo la concessione (§45).",
              "Autorizzazione attiva su un trattamento la cui struttura è cambiata dopo la concessione o l'ultima verifica confermata.",
              _M, _authorization_review_needed),

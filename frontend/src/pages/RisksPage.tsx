@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead,
   TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
@@ -9,6 +9,8 @@ import AddIcon from '@mui/icons-material/Add';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { SinglePick } from '../components/UnitPicker';
 
 interface Risk { id: string; code: string; title: string; threat_category: string | null; description: string | null }
 interface Assessment {
@@ -67,7 +69,7 @@ export const RisksPage: React.FC = () => {
   };
 
   const saveRisk = async () => {
-    if (!riskForm.title.trim()) return;
+    if (!riskForm.title.trim()) { setError(t('common.fill_required')); return; }
     try {
       await apiClient.post('/api/privacypa/risks', riskForm);
       setOpenRisk(false); setRiskForm({ title: '', threat_category: '', description: '' }); await load();
@@ -94,7 +96,7 @@ export const RisksPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('risk.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('risk.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { textTransform: 'none' } }}>
             <Tab label={t('risk.tabs.catalog')} />
@@ -209,12 +211,10 @@ export const RisksPage: React.FC = () => {
       <Dialog open={openRa} onClose={() => setOpenRa(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t('risk.add_assessment')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          <FormControl fullWidth>
-            <InputLabel>{t('risk.doc_title')}</InputLabel>
-            <Select label={t('risk.doc_title')} value={raForm.risk_id} onChange={(e) => setRaForm({ ...raForm, risk_id: e.target.value })}>
-              {risks.map((r) => <MenuItem key={r.id} value={r.id}>{r.code} — {r.title}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <SinglePick
+            label={t('risk.doc_title')} required items={risks.map((r) => ({ id: r.id, label: `${r.code} — ${r.title}` }))}
+            value={raForm.risk_id} onChange={(id) => setRaForm((f) => ({ ...f, risk_id: id }))}
+          />
           <FormControl fullWidth>
             <InputLabel>{t('risk.target_type')}</InputLabel>
             <Select label={t('risk.target_type')} value={raForm.entity_type} onChange={(e) => setRaForm({ ...raForm, entity_type: e.target.value, entity_id: '' })}>
@@ -222,14 +222,11 @@ export const RisksPage: React.FC = () => {
               <MenuItem value="processing_activity">{t('risk.processing')}</MenuItem>
             </Select>
           </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('risk.target')}</InputLabel>
-            <Select label={t('risk.target')} value={raForm.entity_id} onChange={(e) => setRaForm({ ...raForm, entity_id: e.target.value })}>
-              {(raForm.entity_type === 'dpia' ? dpias : procs).map((x) => (
-                <MenuItem key={x.id} value={x.id}>{x.code} — {x.title}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <SinglePick
+            label={t('risk.target')} required
+            items={(raForm.entity_type === 'dpia' ? dpias : procs).map((x) => ({ id: x.id, label: `${x.code} — ${x.title}` }))}
+            value={raForm.entity_id} onChange={(id) => setRaForm((f) => ({ ...f, entity_id: id }))}
+          />
           <TextField type="number" label={t('risk.likelihood')} value={raForm.likelihood} onChange={(e) => setRaForm({ ...raForm, likelihood: Number(e.target.value) })} inputProps={{ min: 1, max: 5 }} />
           <TextField type="number" label={t('risk.impact')} value={raForm.impact} onChange={(e) => setRaForm({ ...raForm, impact: Number(e.target.value) })} inputProps={{ min: 1, max: 5 }} />
           <TextField label={t('risk.rationale')} value={raForm.assessment_rationale} onChange={(e) => setRaForm({ ...raForm, assessment_rationale: e.target.value })} multiline minRows={2} required />

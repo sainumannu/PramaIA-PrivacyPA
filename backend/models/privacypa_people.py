@@ -8,7 +8,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, false, true
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -140,25 +140,49 @@ class TrainingCompletion(Base):
 
 # ---------------------------------------------------------------- autorizzati (§45)
 
+# Operazioni e tipi di ambito di un profilo di accesso (richieste di accesso dall'HelpDesk).
+ACCESS_OPERATIONS = ("READ", "CREATE", "UPDATE", "DELETE", "EXPORT", "PRINT", "DOWNLOAD", "ADMINISTER")
+ACCESS_SCOPE_TYPES = ("ALL_RECORDS", "ASSIGNED_CASES", "ORGANIZATIONAL_UNIT", "GEOGRAPHIC_AREA", "SUBJECT_SET", "CUSTOM")
+
+
 class AuthorizationProfile(Base):
+    """Profilo di accesso: cosa consente su quale sistema e con quali requisiti. `row_version` è la versione del profilo."""
+
     __tablename__ = "privacypa_authorization_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     __mapper_args__ = {"version_id_col": row_version}
     tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    asset_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("privacypa_assets.id"), nullable=True, index=True)
+    data_category_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    allowed_operations: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    allowed_scope_types: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    processing_activity_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    required_training_course_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Durata massima degli accessi temporanei; None = nessun limite (anche accessi permanenti).
+    max_duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uix_privacypa_auth_profile_name"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uix_privacypa_auth_profile_name"),
+        Index("uix_privacypa_auth_profile_code", "tenant_id", "code", unique=True),
+    )
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id, "row_version": self.row_version, "tenant_id": self.tenant_id, "name": self.name,
-            "description": self.description, "created_at": _iso(self.created_at), "updated_at": _iso(self.updated_at),
+            "id": self.id, "row_version": self.row_version, "tenant_id": self.tenant_id, "code": self.code, "name": self.name,
+            "description": self.description, "asset_id": self.asset_id, "data_category_ids": self.data_category_ids or [],
+            "allowed_operations": self.allowed_operations or [], "allowed_scope_types": self.allowed_scope_types or [],
+            "processing_activity_ids": self.processing_activity_ids or [],
+            "required_training_course_ids": self.required_training_course_ids or [], "max_duration_days": self.max_duration_days,
+            "active": self.active, "created_at": _iso(self.created_at), "updated_at": _iso(self.updated_at),
         }
 
 
@@ -187,9 +211,27 @@ class Authorization(Base):
     # Verifica confermata dopo un cambio di struttura del trattamento (§45).
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Estremi dell'autorizzazione del responsabile della banca dati (evidenza della concessione).
+    authorized_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    authorization_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    authorization_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    authorization_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    operations: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    scope: Mapped[dict | None] = mapped_column(JSON, nullable=True)          # {"type": ..., "value": ...}
+    profile_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Origine della registrazione (es. HELPDESK + numero del ticket).
+    source_module: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    # Approvazione forzata da un Admin ICT con PrivacyPA non raggiungibile.
+    forced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    revocation_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     def is_active(self, today: date) -> bool:
         return self.revoked_at is None and self.valid_from <= today and (self.valid_to is None or self.valid_to >= today)
+
+    def is_current(self, today: date) -> bool:
+        """Non revocata e non scaduta: in vigore oppure con inizio futuro (si può ancora modificare o revocare)."""
+        return self.revoked_at is None and (self.valid_to is None or self.valid_to >= today)
 
     def to_dict(self) -> dict:
         return {
@@ -199,7 +241,11 @@ class Authorization(Base):
             "valid_to": _iso(self.valid_to), "granted_by": self.granted_by, "granted_at": _iso(self.granted_at),
             "revoked_at": _iso(self.revoked_at), "revoked_by": self.revoked_by, "revoked_reason": self.revoked_reason,
             "last_reviewed_at": _iso(self.last_reviewed_at), "last_reviewed_by": self.last_reviewed_by,
-            "active": self.is_active(date.today()),
+            "authorized_by_name": self.authorized_by_name, "authorization_reference": self.authorization_reference,
+            "authorization_date": _iso(self.authorization_date), "authorization_notes": self.authorization_notes,
+            "operations": self.operations or [], "scope": self.scope, "profile_version": self.profile_version,
+            "source_module": self.source_module, "source_ref": self.source_ref, "forced": bool(self.forced),
+            "revocation_reference": self.revocation_reference, "active": self.is_active(date.today()),
         }
 
 

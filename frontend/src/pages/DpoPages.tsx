@@ -12,6 +12,7 @@ import { EntityCrudPage, StatusChip } from '../components/EntityCrud';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const API = '/api/privacypa';
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
@@ -35,7 +36,7 @@ export const OpinionsPage: React.FC = () => {
         { name: 'entity_id', type: 'ref', required: true, dependsOn: 'entity_type',
           refEndpoint: (v) => ENTITY_ENDPOINTS[v.entity_type] || null, refLabel: (r) => [r.code, r.title].filter(Boolean).join(' — ') || r.id },
         { name: 'notes', type: 'textarea', hint: 'wf.hints.opinion_notes' },
-        { name: 'dpo_user_id', type: 'text' },
+        { name: 'dpo_user_id', type: 'person' },
       ]}
       columns={[
         { key: 'entity', render: (r) => [r.entity_code, r.entity_title].filter(Boolean).join(' — ') || r.entity_id },
@@ -102,7 +103,7 @@ export const DpoWorkspacePage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('workspace.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('workspace.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {ws && (
           <>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
@@ -199,7 +200,7 @@ export const AnnualReportPage: React.FC = () => {
           </FormControl>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('report.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         {report && (

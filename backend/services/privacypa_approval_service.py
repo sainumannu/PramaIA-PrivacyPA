@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.models.privacypa_access import AccessAssessment
 from backend.models.privacypa_approvals import Approval, ApprovalDecision, ApprovalState
 from backend.models.privacypa_assessments import DpiaStatus
 from backend.models.privacypa_audit import AuditLog
@@ -26,8 +27,10 @@ from backend.services.privacypa_processing_service import ProcessingService
 PROCESSING = "processing_activity"
 DPIA = "dpia"
 NOTICE = "privacy_notice"
+# Richiesta di accesso non standard inviata dall'HelpDesk: la decisione non cambia stati in PrivacyPA, la legge l'HelpDesk.
+ACCESS = "access_assessment"
 # Permesso `<modulo>.approve` che abilita la decisione, per tipo di entità.
-APPROVE_PERMISSION = {PROCESSING: "processing.approve", DPIA: "dpia.approve", NOTICE: "notice.approve"}
+APPROVE_PERMISSION = {PROCESSING: "processing.approve", DPIA: "dpia.approve", NOTICE: "notice.approve", ACCESS: "access.approve"}
 # Stato in cui l'entità attende una decisione.
 AWAITING_STATUS = {PROCESSING: ProcessingStatus.IN_REVIEW, DPIA: DpiaStatus.AWAITING_DECISION, NOTICE: NoticeStatus.IN_REVIEW}
 # Richiedente delle richieste create per record già in revisione prima dell'introduzione delle approvazioni.
@@ -72,10 +75,12 @@ class EntityInfo:
     unit_id: str | None
     code: str | None
     title: str | None
+    # Versione da approvare quando non è la row_version del record (valutazioni: versione della richiesta dell'HelpDesk).
+    entity_version: int | None = None
 
     @property
     def version(self) -> int:
-        return self.entity.row_version
+        return self.entity_version if self.entity_version is not None else self.entity.row_version
 
 
 class ApprovalService:
@@ -104,6 +109,14 @@ class ApprovalService:
             if entity is None:
                 return None
             return EntityInfo(entity, entity_type, entity.owner_unit_id, entity.code, entity.title)
+        if entity_type == ACCESS:
+            entity = await self.db.get(AccessAssessment, entity_id)
+            if entity is None or entity.tenant_id != tenant_id:
+                return None
+            from backend.services.privacypa_access_service import assessment_title
+
+            return EntityInfo(entity, entity_type, entity.organizational_unit_id, entity.source_ref[:30],
+                              await assessment_title(self.db, entity), entity_version=entity.request_version)
         return None
 
     async def content_editors(self, tenant_id: str, entity_type: str, entity_id: str) -> set[str]:
@@ -234,6 +247,13 @@ class ApprovalService:
         self, tenant_id: str, approval: Approval, approver_id: str
     ) -> str | None:
         """Motivo per cui `approver_id` non può decidere per policy dell'ente, oppure None."""
+        if approval.entity_type == ACCESS:
+            # Sempre, indipendentemente dalla policy: chi richiede (anche tramite l'HelpDesk) o riceve l'accesso non decide.
+            assessment = await self.db.get(AccessAssessment, approval.entity_id)
+            if assessment is not None and approver_id == assessment.subject_user_id:
+                return "Non si decide su una richiesta di accesso che riguarda sé stessi"
+            if approver_id in (approval.requested_by, approval.requested_on_behalf_of):
+                return "Non si decide su una richiesta di accesso inviata da sé stessi"
         rules = await get_segregation(self.db, tenant_id)
         if rules["approver_not_requester"] and approver_id == approval.requested_by:
             return "La policy dell'ente non consente di approvare una richiesta inviata da sé stessi"
@@ -275,10 +295,13 @@ class ApprovalService:
         approval.decision_at = datetime.utcnow()
         approval.notes = (notes or "").strip() or None
         await self.db.flush()
+        extra = {}
+        if approval.entity_type == ACCESS:      # per il webhook access_approval.decided (le note restano fuori)
+            extra = {"source_ref": info.entity.source_ref, "request_version": info.entity.request_version}
         await self.audit.log(
             tenant_id, approval.entity_type, "approval_decided", event_type=f"approval.{decision.value.lower()}",
             entity_id=approval.entity_id, actor_user_id=approver_id,
-            new_values={"approval_id": approval.id, "decision": decision.value, "entity_version": approval.entity_version},
+            new_values={"approval_id": approval.id, "decision": decision.value, "entity_version": approval.entity_version, **extra},
         )
         return approval
 
@@ -295,5 +318,7 @@ class ApprovalService:
         elif info.entity_type == NOTICE:
             target = NoticeStatus.APPROVED if approved else NoticeStatus.DRAFT
             await NoticeService(self.db).transition(tenant_id, info.entity.id, actor, target)
+        elif info.entity_type == ACCESS:
+            return                              # la decisione resta sull'approvazione: l'HelpDesk la rilegge
         else:  # pragma: no cover - i tipi ammessi sono filtrati a monte
             raise ApprovalError(f"Tipo di entità non gestito: {info.entity_type}")

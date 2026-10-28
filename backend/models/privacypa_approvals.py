@@ -48,6 +48,8 @@ class Approval(Base):
     organizational_unit_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
     requested_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Persona per conto della quale un account di servizio ha inviato la richiesta (es. operatore dell'HelpDesk).
+    requested_on_behalf_of: Mapped[str | None] = mapped_column(String(100), nullable=True)
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     request_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -83,6 +85,7 @@ class Approval(Base):
             "organizational_unit_id": self.organizational_unit_id,
             "state": self.state.value,
             "requested_by": self.requested_by,
+            "requested_on_behalf_of": self.requested_on_behalf_of,
             "requested_at": self.requested_at.isoformat() if self.requested_at else None,
             "request_notes": self.request_notes,
             "approver_id": self.approver_id,

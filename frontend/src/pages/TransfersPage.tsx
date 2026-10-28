@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, FormControlLabel, InputLabel, MenuItem, Paper, Select, Switch, Table, TableBody,
   TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
@@ -9,6 +9,8 @@ import AddIcon from '@mui/icons-material/Add';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { SinglePick } from '../components/UnitPicker';
 
 interface Transfer {
   id: string; row_version: number; code: string; title: string; country_code: string; mechanism: string;
@@ -17,6 +19,7 @@ interface Transfer {
   tia_rationale: string | null; law_access_assessment: string | null;
   supplementary_measures: string | null; next_review_date: string | null;
   adequacy_reference: string | null;
+  exporter_party_id: string | null; tia_document_id: string | null; last_review_date: string | null;
   links?: { entity_type: string; entity_id: string }[];
 }
 interface Party { id: string; code: string; legal_name: string }
@@ -51,6 +54,16 @@ export const TransfersPage: React.FC = () => {
   };
   useEffect(() => { load(); }, []);
 
+  // Il PATCH sostituisce il record e i collegamenti: in modifica i campi che il modulo non mostra
+  // e gli altri collegamenti (oltre al trattamento scelto qui) si rimandano com'erano.
+  const links = () => {
+    const shown = editing?.links?.find((l) => l.entity_type === 'processing_activity');
+    const others = (editing?.links || [])
+      .filter((l) => l !== shown && !(l.entity_type === 'processing_activity' && l.entity_id === form.processing_id))
+      .map(({ entity_type, entity_id }) => ({ entity_type, entity_id }));
+    return form.processing_id ? [{ entity_type: 'processing_activity', entity_id: form.processing_id }, ...others] : others;
+  };
+
   const payload = () => ({
     title: form.title.trim(),
     country_code: form.country_code.toUpperCase(),
@@ -66,11 +79,14 @@ export const TransfersPage: React.FC = () => {
     status: form.status,
     next_review_date: form.next_review_date || null,
     adequacy_reference: form.adequacy_reference || null,
-    links: form.processing_id ? [{ entity_type: 'processing_activity', entity_id: form.processing_id }] : [],
+    exporter_party_id: editing?.exporter_party_id ?? null,
+    tia_document_id: editing?.tia_document_id ?? null,
+    last_review_date: editing?.last_review_date ?? null,
+    links: links(),
   });
 
   const save = async () => {
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) { setError(t('common.fill_required')); return; }
     try {
       if (editing) await apiClient.patch(`/api/privacypa/transfers/${editing.id}`, payload(), { version: editing.row_version });
       else await apiClient.post('/api/privacypa/transfers', payload());
@@ -88,7 +104,7 @@ export const TransfersPage: React.FC = () => {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setForm(empty); setOpen(true); }}>{t('tia.add')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('tia.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Table size="small">
             <TableHead>
@@ -136,13 +152,10 @@ export const TransfersPage: React.FC = () => {
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <TextField label={t('tia.doc_title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           <TextField label={t('tia.country')} value={form.country_code} onChange={(e) => setForm({ ...form, country_code: e.target.value })} inputProps={{ maxLength: 2 }} />
-          <FormControl fullWidth>
-            <InputLabel>{t('tia.importer')}</InputLabel>
-            <Select label={t('tia.importer')} value={form.importer_party_id} onChange={(e) => setForm({ ...form, importer_party_id: e.target.value })}>
-              <MenuItem value="">—</MenuItem>
-              {parties.map((p) => <MenuItem key={p.id} value={p.id}>{p.legal_name}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <SinglePick
+            label={t('tia.importer')} items={parties.map((p) => ({ id: p.id, label: p.legal_name }))}
+            value={form.importer_party_id} onChange={(id) => setForm((f) => ({ ...f, importer_party_id: id }))}
+          />
           <FormControl fullWidth>
             <InputLabel>{t('tia.processing')}</InputLabel>
             <Select label={t('tia.processing')} value={form.processing_id} onChange={(e) => setForm({ ...form, processing_id: e.target.value })}>

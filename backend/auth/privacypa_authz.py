@@ -14,7 +14,7 @@ Quali ruoli hanno quali permessi (§10.1) è definito in privacypa_permissions.p
 """
 from typing import Iterable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.portal_jwt import get_current_user, TokenPayload
@@ -22,20 +22,45 @@ from backend.db.database import get_db
 from backend.models.privacypa_identity import PrivacyRoleCode, ScopeType
 from backend.services.privacypa_identity_service import IdentityService
 from backend.services.privacypa_organization_service import OrganizationService
+from backend.utils.request_context import on_behalf_of_var
 
 
 def is_portal_global_or_tenant_admin(user: TokenPayload) -> bool:
     return user.tenant_role == "global_admin" or user.tenant_role == "admin"
 
 
-def require_tenant(user: TokenPayload = Depends(get_current_user)) -> str:
-    """Dependency: estrae il tenant_id dal JWT, 400 se l'utente non è associato a un ente."""
+def tenant_of(user: TokenPayload) -> str:
+    """Il tenant_id del JWT, 400 se l'utente non è associato a un ente."""
     if not user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Utente non associato a nessun ente (tenant_id mancante nel token)",
         )
     return user.tenant_id
+
+
+def require_tenant(
+    user: TokenPayload = Depends(get_current_user),
+    x_tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
+) -> str:
+    """
+    Dependency: il tenant della richiesta è quello del JWT. Un `X-Tenant-ID` diverso è rifiutato (403), non usato:
+    la scelta del tenant tra quelli del claim `tenants` arriverà con l'allineamento alla convenzione del Portal.
+    """
+    tenant_id = tenant_of(user)
+    if x_tenant_id and x_tenant_id.strip() and x_tenant_id.strip() != tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Il tenant richiesto non è quello del token")
+    return tenant_id
+
+
+async def record_on_behalf_of(x_on_behalf_of: str | None = Header(None, alias="X-On-Behalf-Of")) -> str | None:
+    """
+    Dependency dei router usati dagli account di servizio: la persona per conto della quale chiamano. Si imposta a ogni
+    richiesta (anche vuota) e l'audit la usa solo se l'attore è un account di servizio: per gli utenti è ignorata.
+    """
+    value = (x_on_behalf_of or "").strip()[:100] or None
+    on_behalf_of_var.set(value)
+    return value
 
 
 async def get_user_privacy_roles(
@@ -63,7 +88,7 @@ def require_privacy_role(*role_codes: PrivacyRoleCode):
         if is_portal_global_or_tenant_admin(user):
             return user
 
-        tenant_id = require_tenant(user)
+        tenant_id = tenant_of(user)
         svc = IdentityService(db)
         assignments = await svc.list_user_assignments(tenant_id, user.sub or user.email, active_only=True)
         user_roles = {a.role_code for a in assignments}
@@ -86,7 +111,7 @@ async def assert_privacy_role(
     """Stesso controllo di require_privacy_role, usabile da un handler già autenticato."""
     if is_portal_global_or_tenant_admin(user):
         return
-    tenant_id = require_tenant(user)
+    tenant_id = tenant_of(user)
     svc = IdentityService(db)
     assignments = await svc.list_user_assignments(tenant_id, user.sub or user.email, active_only=True)
     user_roles = {a.role_code for a in assignments}
@@ -149,7 +174,7 @@ async def assert_effective_role(
     Come `assert_role_for_unit` ma senza la scorciatoia degli amministratori del Portal: serve un'assegnazione
     di ruolo reale che copra la struttura. Per atti che non si delegano (es. il parere del DPO).
     """
-    tenant_id = require_tenant(user)
+    tenant_id = tenant_of(user)
     accessible = await get_accessible_unit_ids(db, tenant_id, user.sub or user.email, False, roles=role_codes)
     if accessible is None or (unit_id and unit_id in accessible):
         return
@@ -172,7 +197,7 @@ async def assert_role_for_unit(
     """
     if is_portal_global_or_tenant_admin(user):
         return
-    tenant_id = require_tenant(user)
+    tenant_id = tenant_of(user)
     accessible = await get_accessible_unit_ids(
         db, tenant_id, user.sub or user.email, False, roles=role_codes
     )

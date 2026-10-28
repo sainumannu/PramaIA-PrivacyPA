@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models.privacypa_organization import Organization, OrganizationalUnit
+from backend.models.privacypa_organization import Organization, OrganizationalUnit, OrganizationalUnitType
 from backend.services.privacypa_audit_service import AuditService
 
 
@@ -124,6 +124,33 @@ class OrganizationService:
         await self.db.refresh(unit)
         return unit
 
+    async def ensure_portal_unit(
+        self, tenant_id: str, organization_id: str, nodes: dict[str, dict], node_id: str, actor_user_id: str,
+    ) -> OrganizationalUnit:
+        """La struttura PrivacyPA del nodo dell'organigramma del Portal, creata (con le strutture sopra) se manca.
+
+        Una struttura PrivacyPA non ancora collegata e con lo stesso nome viene collegata invece di crearne un doppione.
+        """
+        node = nodes.get(node_id)
+        if node is None:
+            raise ValueError(f"Struttura '{node_id}' non presente nell'organigramma del Portal")
+        units = await self.list_units(tenant_id)
+        linked = next((u for u in units if u.portal_node_id == node_id), None)
+        if linked is not None:
+            return linked
+        parent = None
+        if node.get("parent_id"):
+            parent = await self.ensure_portal_unit(tenant_id, organization_id, nodes, node["parent_id"], actor_user_id)
+        same_name = next((u for u in units if u.portal_node_id is None
+                          and u.name.strip().casefold() == node["name"].strip().casefold()), None)
+        if same_name is not None:
+            return await self.update_unit(tenant_id, same_name.id, actor_user_id, portal_node_id=node_id)
+        return await self.create_unit(
+            tenant_id, organization_id=organization_id, actor_user_id=actor_user_id,
+            code=(node.get("code") or node["name"])[:50], name=node["name"][:255], unit_type=guess_unit_type(node["name"]),
+            parent_id=parent.id if parent else None, portal_node_id=node_id,
+        )
+
     async def get_subtree_unit_ids(self, tenant_id: str, root_unit_id: str) -> set[str]:
         """Espande un sottoalbero organizzativo (per lo scope_type=SUBTREE, §9.3)."""
         units = await self.list_units(tenant_id)
@@ -140,3 +167,17 @@ class OrganizationService:
                     result.add(child_id)
                     stack.append(child_id)
         return result
+
+
+_TYPE_BY_FIRST_WORD = {
+    "area": OrganizationalUnitType.AREA, "settore": OrganizationalUnitType.SETTORE,
+    "servizio": OrganizationalUnitType.SERVIZIO, "servizi": OrganizationalUnitType.SERVIZIO,
+    "ufficio": OrganizationalUnitType.UFFICIO, "uffici": OrganizationalUnitType.UFFICIO,
+    "comando": OrganizationalUnitType.COMANDO, "istituzione": OrganizationalUnitType.ISTITUZIONE,
+}
+
+
+def guess_unit_type(name: str) -> OrganizationalUnitType:
+    """Il Portal non ha il tipo di struttura: si ricava dalla prima parola del nome (es. «Area …», «Ufficio …»), altrimenti UNITA."""
+    words = name.strip().split()
+    return _TYPE_BY_FIRST_WORD.get(words[0].casefold(), OrganizationalUnitType.UNITA) if words else OrganizationalUnitType.UNITA

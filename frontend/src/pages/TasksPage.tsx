@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography,
 } from '@mui/material';
@@ -8,11 +8,14 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddIcon from '@mui/icons-material/Add';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
+import { PersonField } from '../components/PortalPeople';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface Task {
   id: string; row_version: number; code: string; title: string; status: string; computed_status: string;
   priority: string; due_at: string | null; assigned_user_id: string | null; source_type: string;
+  description: string | null; source_id: string | null; assigned_unit_id: string | null;
 }
 
 const empty = { title: '', description: '', priority: 'MEDIUM', status: 'OPEN', due_at: '', assigned_user_id: '', source_type: 'MANUAL' };
@@ -32,11 +35,16 @@ export const TasksPage: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) { setError(t('common.fill_required')); return; }
+    // Il PATCH sostituisce il record: origine e unità assegnata (non nel modulo) si rimandano com'erano.
+    // La scadenza viaggia come la salva il backend, senza conversioni di fuso (come in EntityCrud).
     const body = {
       ...form,
-      due_at: form.due_at ? new Date(form.due_at).toISOString() : null,
+      description: form.description.trim() || null,
+      due_at: form.due_at ? `${form.due_at.slice(0, 16)}:00` : null,
       assigned_user_id: form.assigned_user_id || null,
+      source_id: editing?.source_id ?? null,
+      assigned_unit_id: editing?.assigned_unit_id ?? null,
     };
     try {
       if (editing) await apiClient.patch(`/api/privacypa/tasks/${editing.id}`, body, { version: editing.row_version });
@@ -57,7 +65,7 @@ export const TasksPage: React.FC = () => {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setForm(empty); setOpen(true); }}>{t('tasks.add')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('tasks.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Table size="small">
             <TableHead><TableRow>
@@ -72,7 +80,7 @@ export const TasksPage: React.FC = () => {
                 <TableRow key={row.id} hover sx={{ cursor: 'pointer' }} onClick={() => {
                   setEditing(row);
                   setForm({
-                    title: row.title, description: '', priority: row.priority, status: row.status,
+                    title: row.title, description: row.description || '', priority: row.priority, status: row.status,
                     due_at: row.due_at ? row.due_at.slice(0, 16) : '', assigned_user_id: row.assigned_user_id || '',
                     source_type: row.source_type,
                   });
@@ -105,7 +113,7 @@ export const TasksPage: React.FC = () => {
             </Select>
           </FormControl>
           <TextField type="datetime-local" label={t('tasks.due')} InputLabelProps={{ shrink: true }} value={form.due_at} onChange={(e) => setForm({ ...form, due_at: e.target.value })} />
-          <TextField label={t('tasks.assignee')} value={form.assigned_user_id} onChange={(e) => setForm({ ...form, assigned_user_id: e.target.value })} />
+          <PersonField label={t('tasks.assignee')} value={form.assigned_user_id} onChange={(v) => setForm((f) => ({ ...f, assigned_user_id: v }))} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>

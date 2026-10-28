@@ -3,7 +3,8 @@
     "actions": "Actions",
     "edit": "Edit",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "fill_required": "Fill in the required fields (marked with *)."
   },
   "organization": {
     "title": "Organization",
@@ -36,7 +37,7 @@
       "type": "Type",
       "parent": "Parent unit",
       "none": "— none (root) —",
-      "manager": "Manager (user id)",
+      "manager": "Manager",
       "no_units": "No organizational units defined yet",
       "fields_required": "Code and name are required",
       "created": "Unit created",
@@ -58,7 +59,7 @@
       "code": "Code",
       "name": "Name",
       "description": "Description",
-      "user_id": "User ID (email/Portal sub)",
+      "user_id": "User",
       "role": "Role",
       "scope_type": "Scope",
       "scope_unit": "Reference unit",
@@ -79,7 +80,8 @@
         "UNIT": "Single unit",
         "SUBTREE": "Organizational subtree",
         "RECORD": "Single record"
-      }
+      },
+      "user_hint": "Choose from the Portal org chart; for a service account type the identifier (e.g. app:pramaia-helpdesk)."
     }
   },
   "dashboard": {
@@ -153,7 +155,9 @@
       "confidentiality": "Confidentiality level",
       "automated_decision": "Automated decision-making",
       "profiling": "Profiling",
-      "mandatory_provision": "Mandatory provision"
+      "mandatory_provision": "Mandatory provision",
+      "owner": "Processing owner (manager)",
+      "privacy_referent": "Privacy contact"
     },
     "status": {
       "DRAFT": "Draft",
@@ -169,7 +173,16 @@
       "CONFIDENTIAL": "Confidential",
       "RESTRICTED": "Restricted",
       "HIGHLY_RESTRICTED": "Highly restricted"
-    }
+    },
+    "sections": {
+      "general": "General",
+      "purposes": "Purposes and legal bases",
+      "data": "Data subjects and data",
+      "systems": "Systems and third parties",
+      "other": "Dates, confidentiality and characteristics"
+    },
+    "links_failed": "The processing activity was saved, but its links (systems, processors, recipients) were not. Fix and save again:",
+    "after_create_hint": "Retention rules and data flows can be added after the first save."
   },
   "catalogs": {
     "legal_basis": "GDPR legal bases",
@@ -214,7 +227,12 @@
       "HYBRID": "Hybrid",
       "SAAS": "SaaS",
       "OTHER": "Other"
-    }
+    },
+    "data_owner": "Database owner",
+    "data_owner_hint": "Who authorizes access: HelpDesk suggests it in the authorization details of access requests.",
+    "data_owner_name": "Name",
+    "data_owner_role": "Role (e.g. Head of Registry Office)",
+    "data_owner_user_id": "Person in the Portal (optional)"
   },
   "parties": {
     "title": "Suppliers and processors",
@@ -338,7 +356,7 @@
   },
   "approvals": {
     "title": "Approvals",
-    "subtitle": "Approval requests for processing activities and DPIAs. Each decision is bound to the version submitted for review.",
+    "subtitle": "Approval requests for processing activities, DPIAs, notices and non-standard access requests from HelpDesk. Each decision is bound to the version sent for review.",
     "load_failed": "Could not load approvals",
     "decided": "Decision recorded",
     "entity": "Record",
@@ -356,7 +374,8 @@
     "type": {
       "processing_activity": "Processing",
       "dpia": "DPIA",
-      "privacy_notice": "Privacy notice"
+      "privacy_notice": "Privacy notice",
+      "access_assessment": "Access request"
     },
     "state": {
       "PENDING": "Pending",
@@ -377,6 +396,26 @@
       "REJECTED": "Reject",
       "CHANGES_REQUESTED": "Request changes",
       "note_required": "The note is required and will be visible to the requester."
+    },
+    "on_behalf_of": "on behalf of {{user}}",
+    "access": {
+      "temporary": "from {{from}} to {{to}}",
+      "permanent": "permanent",
+      "ticket": "ticket {{ref}} (version {{version}})",
+      "subject": "Person",
+      "checks": {
+        "PROFILE_APPROVED": "Profile",
+        "OPERATION_ALLOWED": "Operations",
+        "SCOPE_ALLOWED": "Scope",
+        "TEMPORARY_ACCESS_POLICY": "Duration",
+        "TRAINING_VALID": "Training",
+        "ALREADY_AUTHORIZED": "Already authorized",
+        "PRIVACY_INSTRUCTIONS_VALID": "Instructions",
+        "SYSTEM_REGISTERED": "System",
+        "SUBJECT_RESOLVED": "Person",
+        "CURRENT_AUTHORIZATION": "Current authorization",
+        "CHANGE_REDUCES_PRIVILEGES": "Privilege reduction"
+      }
     }
   },
   "policy": {
@@ -413,7 +452,8 @@
       "OPERATOR": "Operator",
       "AUDITOR": "Auditor",
       "READ_ONLY": "Read only",
-      "INTEGRATION": "Integration (service account)"
+      "INTEGRATION": "Integration (service account)",
+      "INTEGRATION_HELPDESK": "HelpDesk integration (service account)"
     },
     "modules": {
       "processing": "Processing register",
@@ -432,7 +472,8 @@
       "roles": "User roles",
       "policy": "Entity policy",
       "query": "Queries",
-      "webhook": "Webhooks"
+      "webhook": "Webhooks",
+      "access": "Access requests (HelpDesk)"
     },
     "actions": {
       "view": "View",
@@ -746,7 +787,7 @@
       "aware_at": "When the entity became aware of it. It can only be corrected with a reason, and the original stays visible.",
       "requester_reference": "Opaque reference (e.g. protocol number): it does not appear in audit, notifications or events.",
       "validity_months": "Months of validity after completion; empty = no expiry. Drives the renewal.",
-      "user_ids": "User identifiers, separated by comma or new line.",
+      "user_ids": "Choose people from the Portal org chart; for anyone not there, type the identifier and press Enter.",
       "opinion_notes": "The context of the request. It does not appear in audit or events.",
       "go_live_date": "Only at the approval decision; empty = today. The post-implementation review (6 months) is computed from it.",
       "tag_color": "Optional, #RRGGBB format.",
@@ -788,7 +829,7 @@
       },
       "authProfiles": {
         "title": "Authorization profiles",
-        "subtitle": "Assignable access levels (e.g. read, edit, administer)."
+        "subtitle": "Access profiles: system, allowed operations and scopes, required courses and maximum duration. HelpDesk uses them to assess access requests."
       },
       "opinions": {
         "title": "DPO opinions",
@@ -852,7 +893,11 @@
       "label": "Label",
       "key": "Key",
       "field_type": "Type",
-      "required": "Required"
+      "required": "Required",
+      "source_ref": "Source",
+      "asset": "System",
+      "operations": "Operations",
+      "max_duration": "Maximum duration"
     },
     "fields": {
       "source_type": "Type",
@@ -943,7 +988,22 @@
       "options": "Allowed values",
       "required": "Required",
       "position": "Position",
-      "confidentiality_level": "Confidentiality level"
+      "confidentiality_level": "Confidentiality level",
+      "code": "Code",
+      "data_category_ids": "Data categories",
+      "allowed_operations": "Allowed operations",
+      "allowed_scope_types": "Allowed scopes",
+      "processing_activity_ids": "Linked processing activities",
+      "required_training_course_ids": "Required courses",
+      "max_duration_days": "Maximum duration of temporary access (days)",
+      "operations": "Operations",
+      "scope": "Scope",
+      "authorized_by_name": "Authorized by",
+      "authorization_reference": "Authorization reference",
+      "authorization_date": "Authorization date",
+      "authorization_notes": "Authorization notes",
+      "source_ref": "Source",
+      "revocation_reference": "Revocation reference"
     },
     "actions": {
       "start": "Start",
@@ -1082,7 +1142,8 @@
         "OPERATOR": "Operator",
         "AUDITOR": "Auditor",
         "READ_ONLY": "Read only",
-        "INTEGRATION": "Integration (service account)"
+        "INTEGRATION": "Integration (service account)",
+        "INTEGRATION_HELPDESK": "HelpDesk integration (service account)"
       },
       "opinionEntity": {
         "processing_activity": "Processing activity",
@@ -1149,6 +1210,29 @@
         "INTERNAL": "Internal",
         "RESTRICTED": "Restricted",
         "HIGHLY_RESTRICTED": "Highly restricted"
+      },
+      "accessOperation": {
+        "READ": "Read",
+        "CREATE": "Create",
+        "UPDATE": "Update",
+        "DELETE": "Delete",
+        "EXPORT": "Export",
+        "PRINT": "Print",
+        "DOWNLOAD": "Download",
+        "ADMINISTER": "Administer"
+      },
+      "accessScope": {
+        "ALL_RECORDS": "All records",
+        "ASSIGNED_CASES": "Assigned cases",
+        "ORGANIZATIONAL_UNIT": "Organizational unit",
+        "GEOGRAPHIC_AREA": "Geographic area",
+        "SUBJECT_SET": "Set of data subjects",
+        "CUSTOM": "Custom"
+      },
+      "accessRequestType": {
+        "GRANT": "Grant",
+        "CHANGE": "Change",
+        "REVOKE": "Revoke"
       }
     }
   },
@@ -1390,6 +1474,21 @@
       "active": "In force",
       "expired": "Expired",
       "revoked": "Revoked"
+    },
+    "forced": "Forced",
+    "profile_version": "version {{version}}",
+    "authorization_details": "Authorization details",
+    "days": "{{days}} days",
+    "hints": {
+      "authorized_by": "Name and role of the database owner",
+      "profile_code": "Code shown in HelpDesk, e.g. REGISTRY_OPERATOR",
+      "max_duration": "Empty = no limit (permanent access allowed too)"
+    },
+    "person": {
+      "hint": "Choose from the Portal org chart, or type the name or identifier of someone who isn't there (e.g. an external person).",
+      "not_in_portal": "Person not in the Portal: it will be recorded with the text typed.",
+      "unavailable": "Portal org chart unavailable: type the identifier by hand.",
+      "no_unit": "Outside the org chart"
     }
   },
   "opinions": {
@@ -1788,5 +1887,11 @@
       "dsr_base_months": "Response deadline for data subjects (months)",
       "dsr_extension_months": "Possible extension (months)"
     }
+  },
+  "unit_picker": {
+    "privacypa": "PrivacyPA units",
+    "portal": "Portal org chart (will be added to PrivacyPA)",
+    "portal_unavailable": "Portal org chart unreachable: choose among PrivacyPA units.",
+    "add_failed": "Unable to add the unit from the Portal"
   }
 }

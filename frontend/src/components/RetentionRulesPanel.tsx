@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface Rule {
   id: string;
@@ -19,6 +20,7 @@ interface Rule {
   retention_criterion: string;
   start_trigger: string | null;
   legal_reference: string | null;
+  legal_reference_id: string | null;
   disposal_method: string;
   notes: string | null;
   period_text: string;
@@ -87,6 +89,8 @@ export const RetentionRulesPanel: React.FC<Props> = ({ processingId, categories,
       retention_criterion: form.retention_criterion.trim(),
       start_trigger: form.start_trigger.trim() || null,
       legal_reference: form.legal_reference.trim() || null,
+      // Il PATCH sostituisce la regola: il riferimento normativo collegato (impostato via API) si rimanda com'era.
+      legal_reference_id: editing?.legal_reference_id ?? null,
       disposal_method: form.disposal_method,
       notes: form.notes.trim() || null,
     };
@@ -118,17 +122,17 @@ export const RetentionRulesPanel: React.FC<Props> = ({ processingId, categories,
   const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name;
 
   return (
-    <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, p: 1.5 }}>
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="subtitle2" sx={{ flex: 1 }}>{t('retention.title')}</Typography>
         {canEdit && (
           <Button size="small" startIcon={<AddIcon />} onClick={() => openDialog(null)}>{t('retention.add')}</Button>
         )}
       </Box>
-      {error && <Alert severity="error" sx={{ my: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {rules.length === 0 && <Typography variant="body2" color="text.secondary">{t('retention.empty')}</Typography>}
       {rules.map((r) => (
-        <Box key={r.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <Box key={r.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderTop: 1, borderColor: 'divider' }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="body2">
               <strong>{categoryName(r.data_category_id) || r.record_class || t('retention.whole_processing')}</strong>

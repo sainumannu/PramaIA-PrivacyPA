@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead,
   TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
@@ -9,6 +9,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface LegalBasis { code: string; article: string; paragraph: string | null; letter: string | null; description: string }
 interface Subject { id: string; tenant_id: string | null; code: string; name: string; description: string | null }
@@ -79,7 +80,7 @@ export const CatalogsPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('catalogsPage.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('catalogsPage.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { textTransform: 'none' } }}>
             <Tab label={t('catalogs.legal_basis')} />

@@ -181,7 +181,7 @@ class RulesEngine:
                 active[key] = finding
                 await self.audit.log(
                     tenant_id, "compliance_finding", "open", event_type="finding.opened", entity_id=finding.id,
-                    actor_type=ActorType.SYSTEM, new_values={"rule_code": spec.code, "rule_version": rule.version, "entity_id": hit.entity_id},
+                    actor_type=ActorType.SYSTEM, new_values={**hit.event_data, "rule_code": spec.code, "rule_version": rule.version, "entity_id": hit.entity_id},
                 )
                 if spec.on_open is not None:
                     await spec.on_open(ctx, hit)

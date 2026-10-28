@@ -4,6 +4,7 @@ import {
 } from '@mui/material';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface LevelRule { roles: string[]; step_up: boolean; watermark: string; max_downloads_per_hour: number | null; block_bulk_export: boolean }
 interface Config { levels: Record<string, LevelRule>; step_up: { max_age_seconds: number; admin_actions: boolean } }
@@ -36,7 +37,7 @@ export const ConfidentialityPanel: React.FC = () => {
     <Paper sx={{ p: 2, mt: 3 }}>
       <Typography variant="h6">{t('confidentiality.title')}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('confidentiality.subtitle')}</Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
       {data.levels.map((level) => {

@@ -18,6 +18,7 @@ import {
   Refresh,
 } from '@mui/icons-material';
 import { apiClient } from '../services/apiClient';
+import { ErrorBanner } from './ErrorBanner';
 
 interface LicenseStatus {
   valid: boolean;
@@ -132,9 +133,7 @@ const LicensePanel: React.FC = () => {
             </Button>
           </Box>
 
-          {error && (
-            <Alert severity="error">{error}</Alert>
-          )}
+          <ErrorBanner message={error} onClose={() => setError(null)} />
 
           {status && (
             <>

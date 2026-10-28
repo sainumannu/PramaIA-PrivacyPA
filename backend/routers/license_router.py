@@ -24,6 +24,17 @@ class LicenseStatusOut(BaseModel):
     sync_status: str | None = None
 
 
+@router.get("/modules")
+async def get_modules():
+    """
+    Catalogo dei moduli licenziabili di PrivacyPA, per il Portal (standard LICENZE_MODULI_STANDARD.md).
+    Pubblico: elenca solo i nomi da usare in entitlements.modules, nessun dato dell'installazione.
+    """
+    from backend.auth.privacypa_license import catalog
+
+    return catalog()
+
+
 @router.get("/status", response_model=LicenseStatusOut)
 async def get_license_status(
     user: TokenPayload = Depends(get_current_user),

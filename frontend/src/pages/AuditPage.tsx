@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogContent, DialogTitle, MenuItem,
+  Box, Button, Chip, Container, Dialog, DialogContent, DialogTitle, MenuItem,
   Paper, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
 import HistoryIcon from '@mui/icons-material/History';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface AuditRow {
   id: string;
@@ -61,7 +62,7 @@ export const AuditPage: React.FC = () => {
           <Button variant="outlined" onClick={exportJson}>{t('audit.export')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('audit.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Table size="small">
             <TableHead>

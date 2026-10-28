@@ -8,6 +8,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const BASE = '/api/privacypa/imports/processing-activities';
 
@@ -107,7 +108,7 @@ export const ImportPage: React.FC = () => {
             <Step key={k}><StepLabel>{t(`import.steps.${k}`)}</StepLabel></Step>
           ))}
         </Stepper>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
 
         {step === 0 && (
           <Paper sx={{ p: 3 }}>

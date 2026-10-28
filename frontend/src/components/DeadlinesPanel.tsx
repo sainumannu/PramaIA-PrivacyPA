@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface Payload { row_version: number; values: Record<string, number> }
 
@@ -30,7 +31,7 @@ export const DeadlinesPanel: React.FC = () => {
     <Paper sx={{ p: 2, mt: 3 }}>
       <Typography variant="h6">{t('deadlines.title')}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('deadlines.subtitle')}</Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         {FIELDS.map(([key, min, max]) => (

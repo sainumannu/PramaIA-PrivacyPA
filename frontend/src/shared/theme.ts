@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, Theme } from '@mui/material/styles';
 
 // Colore principale dell'app — configurabile in cookiecutter.json (app_color)
 const APP_COLOR = '#10b981';
@@ -24,10 +24,11 @@ const baseTypography = {
 const baseComponents = {
   MuiCard: {
     styleOverrides: {
-      root: {
+      // Bordo dal tema: il bianco trasparente non si vede sui temi chiari
+      root: ({ theme }: { theme: Theme }) => ({
         backgroundImage: 'none',
-        border: '1px solid rgba(255,255,255,0.08)',
-      },
+        border: `1px solid ${theme.palette.divider}`,
+      }),
     },
   },
   MuiButton: {

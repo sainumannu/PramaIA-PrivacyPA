@@ -3,6 +3,16 @@
     "title": "PrivacyManager",
     "version": "v1.0.0"
   },
+  "header": {
+    "tenant": "Ente",
+    "tenant_loading": "Caricamento enti...",
+    "tenant_none": "Nessun ente",
+    "tenant_switch_failed": "Impossibile cambiare ente. Riprova.",
+    "theme": "Tema",
+    "theme_light": "Chiaro",
+    "theme_dark": "Scuro",
+    "theme_blue": "Blu"
+  },
   "navigation": {
     "home": "Home",
     "settings": "Impostazioni",

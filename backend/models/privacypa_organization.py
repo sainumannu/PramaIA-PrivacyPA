@@ -93,6 +93,8 @@ class OrganizationalUnit(Base):
         SAEnum(OrganizationalUnitType, native_enum=False, length=20), nullable=False
     )
     manager_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Nodo dell'organigramma del Portal da cui viene la struttura (None se creata solo in PrivacyPA)
+    portal_node_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     valid_from: Mapped[date] = mapped_column(Date, default=date.today)
     valid_to: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -111,6 +113,7 @@ class OrganizationalUnit(Base):
             "name": self.name,
             "unit_type": self.unit_type.value if self.unit_type else None,
             "manager_user_id": self.manager_user_id,
+            "portal_node_id": self.portal_node_id,
             "active": self.active,
             "valid_from": self.valid_from.isoformat() if self.valid_from else None,
             "valid_to": self.valid_to.isoformat() if self.valid_to else None,

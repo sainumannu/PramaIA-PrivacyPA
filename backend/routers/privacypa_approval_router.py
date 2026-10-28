@@ -19,7 +19,9 @@ from backend.auth.privacypa_permissions import (
 from backend.auth.privacypa_scope import build_scope
 from backend.db.database import get_db
 from backend.models.privacypa_approvals import Approval, ApprovalDecision, ApprovalState
+from backend.services.privacypa_access_service import AccessGovernanceService
 from backend.services.privacypa_approval_service import (
+    ACCESS,
     APPROVE_PERMISSION,
     ApprovalError,
     ApprovalService,
@@ -49,6 +51,10 @@ async def _describe(
     """Approvazione + indicatori per l'interfaccia: contenuto cambiato e possibilità di decidere."""
     payload = approval.to_dict()
     payload.update(stale=False, can_decide=False, blocked_reason=None)
+    if approval.entity_type == ACCESS:          # scheda della richiesta di accesso: richiesta e controlli non superati
+        access = AccessGovernanceService(db)
+        assessment = await access.get(tenant_id, approval.entity_id)
+        payload["access"] = await access.review_details(tenant_id, assessment) if assessment is not None else None
     if approval.state != ApprovalState.PENDING:
         return payload
     info = await svc.load_entity(tenant_id, approval.entity_type, approval.entity_id)

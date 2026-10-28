@@ -19,12 +19,14 @@ OUTBOX_PREFIXES = (
     "processing_activity.create", "processing_activity.update",
     "dpia.status_change", "contract.", "subprocessor.", "processor_agreement.", "retention_rule.", "task.",
     "privacy_notice.", "data_flow.", "corrective_action.", "data_breach.", "data_subject_request.", "audit_plan.",
-    "training_course.", "authorization.", "dpo_opinion.", "annual_report.", "project.", "external_event.",
+    "training_course.", "authorization.", "authorization_profile.", "dpo_opinion.", "annual_report.", "project.", "external_event.",
 )
 # Campi di new_values copiati nel payload.
 _DATA_KEYS = (
     "status", "due_at", "expiry_date", "end_date", "renewal_date", "next_review_date", "valid_to",
     "effective_from", "effective_to", "due_date", "go_live_date", "post_review_due_date", "aware_at", "decision", "entity_version", "approval_id", "rule_code", "rule_version", "entity_id",
+    # richieste di accesso dall'HelpDesk: numero del ticket e versione, versione e stato del profilo
+    "source_ref", "request_version", "version", "active",
 )
 MAX_BATCH = 500
 

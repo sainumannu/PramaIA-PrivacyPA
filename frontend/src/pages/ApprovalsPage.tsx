@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert, Box, Button, Chip, Container, Paper, Tab, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Tabs, Tooltip, Typography,
+  TableHead, TableRow, Tabs, Tooltip, Typography, Link as MuiLink,
 } from '@mui/material';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { Link as RouterLink } from 'react-router-dom';
@@ -9,10 +9,25 @@ import { PramaLayout } from '../components/PramaLayout';
 import StatusNotesDialog from '../components/StatusNotesDialog';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+
+// Scheda di una richiesta di accesso inviata dall'HelpDesk (casi non standard).
+interface AccessDetails {
+  request_type: 'GRANT' | 'CHANGE' | 'REVOKE';
+  source_ref: string;
+  source_url: string | null;
+  request_version: number;
+  subject_user_id: string | null;
+  requested_on_behalf_of: string | null;
+  profile: { code: string | null; name: string; version: number | null } | null;
+  asset: { code: string; name: string } | null;
+  request: { operations?: string[]; scope?: { type: string; value: string | null } | null; duration?: { type: string; valid_from: string | null; valid_to: string | null } };
+  failed_checks: { code: string; result: string; message?: string }[];
+}
 
 interface Approval {
   id: string;
-  entity_type: 'processing_activity' | 'dpia' | 'privacy_notice';
+  entity_type: 'processing_activity' | 'dpia' | 'privacy_notice' | 'access_assessment';
   entity_id: string;
   entity_code: string | null;
   entity_title: string | null;
@@ -27,6 +42,8 @@ interface Approval {
   stale: boolean;
   can_decide: boolean;
   blocked_reason: string | null;
+  requested_on_behalf_of?: string | null;
+  access?: AccessDetails | null;
 }
 
 type Decision = 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
@@ -36,6 +53,7 @@ const ENTITY_ROUTE: Record<Approval['entity_type'], string> = {
   processing_activity: '/registro',
   dpia: '/dpia',
   privacy_notice: '/informative',
+  access_assessment: '/autorizzazioni',
 };
 const DECISION_COLOR: Record<Decision, 'success' | 'error' | 'warning'> = {
   APPROVED: 'success',
@@ -44,6 +62,43 @@ const DECISION_COLOR: Record<Decision, 'success' | 'error' | 'warning'> = {
 };
 
 const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+
+// Il backend accetta solo indirizzi http(s); il controllo qui evita comunque link javascript: nella pagina.
+const ticketLink = (access: AccessDetails, label: string) =>
+  access.source_url && /^https?:\/\//i.test(access.source_url)
+    ? <MuiLink href={access.source_url} target="_blank" rel="noopener noreferrer">{label}</MuiLink>
+    : label;
+
+const AccessSummary: React.FC<{ access: AccessDetails }> = ({ access }) => {
+  const { t } = useTranslation('privacypa');
+  const { request } = access;
+  const duration = request.duration?.type === 'TEMPORARY'
+    ? t('approvals.access.temporary', { from: request.duration.valid_from || '—', to: request.duration.valid_to || '—' })
+    : t('approvals.access.permanent');
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Typography variant="caption" display="block">
+        {t(`wf.enum.accessRequestType.${access.request_type}`)} · {ticketLink(access, t('approvals.access.ticket', { ref: access.source_ref, version: access.request_version }))}
+      </Typography>
+      <Typography variant="caption" display="block">{t('approvals.access.subject')}: {access.subject_user_id || '—'}</Typography>
+      <Typography variant="caption" display="block">
+        {access.asset?.name || '—'} · {access.profile ? (access.profile.code || access.profile.name) : '—'}
+      </Typography>
+      {request.operations && request.operations.length > 0 && (
+        <Typography variant="caption" display="block">
+          {request.operations.map((o) => t(`wf.enum.accessOperation.${o}`)).join(', ')}
+          {request.scope && ` · ${t(`wf.enum.accessScope.${request.scope.type}`)}${request.scope.value ? ` (${request.scope.value})` : ''}`}
+          {` · ${duration}`}
+        </Typography>
+      )}
+      {access.failed_checks.map((c) => (
+        <Typography key={c.code} variant="caption" display="block" color={c.result === 'FAIL' ? 'error' : 'warning.main'}>
+          {t(`approvals.access.checks.${c.code}`)}{c.message ? `: ${c.message}` : ''}
+        </Typography>
+      ))}
+    </Box>
+  );
+};
 
 export const ApprovalsPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
@@ -105,7 +160,7 @@ export const ApprovalsPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('approvals.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('approvals.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
@@ -146,9 +201,13 @@ export const ApprovalsPage: React.FC = () => {
                       >
                         {[a.entity_code, a.entity_title].filter(Boolean).join(' — ')}
                       </Button>
+                      {a.access && <AccessSummary access={a.access} />}
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">{a.requested_by}</Typography>
+                      {a.requested_on_behalf_of && (
+                        <Typography variant="caption" display="block">{t('approvals.on_behalf_of', { user: a.requested_on_behalf_of })}</Typography>
+                      )}
                       <Typography variant="caption" color="text.secondary">{formatDate(a.requested_at)}</Typography>
                       {a.request_notes && <Typography variant="caption" display="block">{a.request_notes}</Typography>}
                     </TableCell>

@@ -25,6 +25,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
+import { PersonField, PersonName } from './PortalPeople';
 
 interface OrganizationalUnit {
   id: string;
@@ -123,11 +125,7 @@ export const OrganizationUnitsPanel: React.FC = () => {
 
   return (
     <Paper sx={{ p: 3 }}>
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {success && (
         <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 2 }}>
           {success}
@@ -169,7 +167,7 @@ export const OrganizationUnitsPanel: React.FC = () => {
                   <TableCell>{unit.name}</TableCell>
                   <TableCell><Chip size="small" label={typeLabel(unit.unit_type)} /></TableCell>
                   <TableCell>{unitName(unit.parent_id)}</TableCell>
-                  <TableCell>{unit.manager_user_id || '—'}</TableCell>
+                  <TableCell><PersonName id={unit.manager_user_id} /></TableCell>
                   <TableCell align="right">
                     <Tooltip title={t('common.edit') || 'Modifica'}>
                       <IconButton size="small" onClick={() => openEdit(unit)}>
@@ -235,11 +233,10 @@ export const OrganizationUnitsPanel: React.FC = () => {
                   </MenuItem>
                 ))}
             </TextField>
-            <TextField
-              label={t('organization.units.manager') || 'Responsabile (user id)'}
+            <PersonField
+              label={t('organization.units.manager') || 'Responsabile'}
               value={form.manager_user_id}
-              onChange={(e) => setForm({ ...form, manager_user_id: e.target.value })}
-              fullWidth
+              onChange={(v) => setForm((f) => ({ ...f, manager_user_id: v }))}
             />
           </Box>
         </DialogContent>

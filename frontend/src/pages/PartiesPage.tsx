@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, FormControlLabel, InputLabel, MenuItem, Paper, Select, Switch, Tab, Tabs,
   Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material';
@@ -10,11 +10,14 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { SinglePick } from '../components/UnitPicker';
 
 interface Party {
   id: string; row_version: number; code: string; legal_name: string; party_type: string; pec: string | null;
   email: string | null; country_code: string | null; tax_id: string | null;
-  processor_profile?: { status: string; next_assessment_date: string | null };
+  vat_id: string | null; website: string | null; notes: string | null;
+  processor_profile?: { party_id: string; status: string; next_assessment_date: string | null; [field: string]: unknown };
 }
 interface Agreement {
   id: string; party_id: string; status: string; expiry_date: string | null;
@@ -55,12 +58,16 @@ export const PartiesPage: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const saveParty = async () => {
-    if (!form.legal_name.trim()) return;
+    if (!form.legal_name.trim()) { setError(t('common.fill_required')); return; }
+    // Il PATCH sostituisce il record: in modifica i campi che il modulo non mostra (P.IVA, sito, profilo
+    // del responsabile con contatti, stato e valutazioni) si rimandano com'erano.
+    const { party_id: _partyId, ...profile } = editing?.processor_profile || { party_id: '' };
     const body = {
       legal_name: form.legal_name, party_type: form.party_type, pec: form.pec || null,
       email: form.email || null, country_code: form.country_code || null, tax_id: form.tax_id || null,
-      notes: form.notes || null,
-      processor_profile: form.party_type === 'PROCESSOR' ? { status: 'TO_REVIEW' } : null,
+      notes: form.notes || null, vat_id: editing?.vat_id ?? null, website: editing?.website ?? null,
+      processor_profile: form.party_type !== 'PROCESSOR' ? null
+        : editing?.processor_profile ? profile : { status: 'TO_REVIEW' },
     };
     try {
       if (editing) await apiClient.patch(`/api/privacypa/parties/${editing.id}`, body, { version: editing.row_version });
@@ -70,7 +77,7 @@ export const PartiesPage: React.FC = () => {
   };
 
   const saveAgr = async () => {
-    if (!agr.party_id) return;
+    if (!agr.party_id) { setError(t('common.fill_required')); return; }
     try {
       await apiClient.post('/api/privacypa/parties/agreements', {
         ...agr, expiry_date: agr.expiry_date || null,
@@ -89,7 +96,7 @@ export const PartiesPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('parties.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('parties.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { textTransform: 'none' } }}>
             <Tab label={t('parties.tabs.registry')} />
@@ -109,7 +116,7 @@ export const PartiesPage: React.FC = () => {
                   {items.map((row) => (
                     <TableRow key={row.id} hover sx={{ cursor: 'pointer' }} onClick={() => {
                       setEditing(row);
-                      setForm({ legal_name: row.legal_name, party_type: row.party_type, pec: row.pec || '', email: row.email || '', country_code: row.country_code || 'IT', tax_id: row.tax_id || '', notes: '' });
+                      setForm({ legal_name: row.legal_name, party_type: row.party_type, pec: row.pec || '', email: row.email || '', country_code: row.country_code || '', tax_id: row.tax_id || '', notes: row.notes || '' });
                       setOpen(true);
                     }}>
                       <TableCell sx={{ fontFamily: 'monospace' }}>{row.code} <AnnotationsButton entityType="party" entityId={row.id} title={row.code} /></TableCell>
@@ -172,11 +179,10 @@ export const PartiesPage: React.FC = () => {
       <Dialog open={agrOpen} onClose={() => setAgrOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t('parties.add_agreement')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          <FormControl><InputLabel>{t('parties.name')}</InputLabel>
-            <Select label={t('parties.name')} value={agr.party_id} onChange={(e) => setAgr({ ...agr, party_id: e.target.value })}>
-              {items.map((p) => <MenuItem key={p.id} value={p.id}>{p.legal_name}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <SinglePick
+            label={t('parties.name')} required items={items.map((p) => ({ id: p.id, label: p.legal_name }))}
+            value={agr.party_id} onChange={(id) => setAgr((a) => ({ ...a, party_id: id }))}
+          />
           <TextField type="date" label={t('parties.expiry')} InputLabelProps={{ shrink: true }} value={agr.expiry_date} onChange={(e) => setAgr({ ...agr, expiry_date: e.target.value })} />
           {(['instructions_present','confidentiality_clause','security_clause','subprocessor_clause','rights_assistance_clause','breach_assistance_clause','dpia_assistance_clause','deletion_return_clause','audit_clause'] as const).map((k) => (
             <FormControlLabel key={k} control={<Switch checked={Boolean(agr[k])} onChange={(e) => setAgr({ ...agr, [k]: e.target.checked })} />} label={t(`parties.clauses.${k}`)} />

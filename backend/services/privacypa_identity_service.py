@@ -10,6 +10,7 @@ from backend.models.privacypa_identity import (
     ScopeType,
 )
 from backend.services.privacypa_audit_service import AuditService
+from backend.utils.request_context import is_service_account
 
 
 class IdentityService:
@@ -50,6 +51,12 @@ class IdentityService:
     ) -> UserRoleAssignment:
         if scope_type in (ScopeType.UNIT, ScopeType.SUBTREE) and not organizational_unit_id:
             raise ValueError(f"scope_type={scope_type.value} richiede organizational_unit_id")
+        if role_code == PrivacyRoleCode.INTEGRATION_HELPDESK:
+            # Ruolo tecnico dell'HelpDesk: mai a una persona, sempre sull'intero ente.
+            if not is_service_account(user_id):
+                raise ValueError(f"Il ruolo {role_code.value} si assegna solo a un account di servizio del Portal (app:...)")
+            if scope_type != ScopeType.TENANT:
+                raise ValueError(f"Il ruolo {role_code.value} vale sull'intero ente")
 
         role = await self.db.get(PrivacyRoleCatalog, role_code)
         if role is None:

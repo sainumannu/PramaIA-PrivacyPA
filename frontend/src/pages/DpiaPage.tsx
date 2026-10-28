@@ -11,6 +11,7 @@ import StatusNotesDialog from '../components/StatusNotesDialog';
 import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface Dpia {
   id: string; row_version: number; code: string; title: string; status: string; screening_outcome: string | null;
@@ -107,7 +108,7 @@ export const DpiaPage: React.FC = () => {
   });
 
   const save = async () => {
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) { setError(t('common.fill_required')); return; }
     try {
       let saved: Dpia;
       if (editing) {
@@ -154,7 +155,7 @@ export const DpiaPage: React.FC = () => {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditing(null); setForm(empty); setScreening([]); setOpen(true); }}>{t('dpia.add')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('dpia.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Table size="small">
             <TableHead>

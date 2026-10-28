@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -18,6 +17,7 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { authGuard } from '../services/authGuard';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface Summary {
   processing: { active: number; drafts: number; review_due: number };
@@ -72,7 +72,7 @@ const HomePage: React.FC = () => {
         </Typography>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {loading && <CircularProgress />}
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>

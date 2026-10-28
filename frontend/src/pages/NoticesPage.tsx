@@ -12,6 +12,8 @@ import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { MultiPick } from '../components/UnitPicker';
 
 interface Version {
   id: string; version_no: number; version_label: string; content?: string; effective_from: string | null;
@@ -152,7 +154,7 @@ export const NoticesPage: React.FC = () => {
           )}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('notices.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         <Paper>
@@ -231,7 +233,7 @@ export const NoticesPage: React.FC = () => {
 
               <Typography variant="subtitle2">{t('notices.versions')}</Typography>
               {(detail.versions || []).map((v, i, all) => (
-                <Box key={v.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.08)', py: 0.5 }}>
+                <Box key={v.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', borderTop: 1, borderColor: 'divider', py: 0.5 }}>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>v{v.version_no}</Typography>
                   <Typography variant="body2"><strong>{v.version_label}</strong></Typography>
                   <Chip size="small" color={v.is_approved ? 'success' : 'default'} label={v.is_approved ? t('notices.approved_by', { user: v.approved_by || '' }) : t('notices.working')} />
@@ -244,7 +246,7 @@ export const NoticesPage: React.FC = () => {
               ))}
 
               {editable && working && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, p: 1.5 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
                   <Typography variant="subtitle2">{t('notices.edit_working')}</Typography>
                   <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <TextField label={t('notices.version_label')} value={draft.version_label} onChange={(e) => setDraft({ ...draft, version_label: e.target.value })} />
@@ -261,16 +263,11 @@ export const NoticesPage: React.FC = () => {
                 </Box>
               )}
 
-              <FormControl fullWidth disabled={detail.status === 'RETIRED' || !can('notice.edit')}>
-                <InputLabel>{t('notices.processings')}</InputLabel>
-                <Select
-                  multiple value={links} input={<OutlinedInput label={t('notices.processings')} />}
-                  onChange={(e) => setLinks(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
-                  renderValue={(ids) => processings.filter((p) => ids.includes(p.id)).map((p) => p.code).join(', ')}
-                >
-                  {processings.map((p) => <MenuItem key={p.id} value={p.id}>{p.code} — {p.title}</MenuItem>)}
-                </Select>
-              </FormControl>
+              <MultiPick
+                label={t('notices.processings')} value={links} onChange={setLinks}
+                disabled={detail.status === 'RETIRED' || !can('notice.edit')}
+                items={processings.map((p) => ({ id: p.id, label: `${p.code} — ${p.title}` }))}
+              />
               {can('notice.edit') && detail.status !== 'RETIRED' && (
                 <Box>
                   <Button onClick={() => run(() => apiClient.put<Notice>(`${base}/processing-links`, { processing_activity_ids: links }, { version }), t('notices.links_saved'))}>{t('notices.save_links')}</Button>

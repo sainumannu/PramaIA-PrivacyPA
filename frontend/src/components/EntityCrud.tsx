@@ -9,9 +9,12 @@ import { PramaLayout } from './PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { AnnotationsButton } from './AnnotationsPanel';
+import { PeopleField, PersonField } from './PortalPeople';
+import { MultiPick, SinglePick, UnitPicker } from './UnitPicker';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
-export type FieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'number' | 'boolean' | 'tristate' | 'select' | 'multiselect' | 'unit' | 'units' | 'ref';
+export type FieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'number' | 'boolean' | 'tristate' | 'select' | 'multiselect' | 'unit' | 'units' | 'ref' | 'refs' | 'person' | 'people';
 
 export interface FieldSpec {
   name: string;
@@ -21,10 +24,11 @@ export interface FieldSpec {
   enumName?: string;
   createOnly?: boolean;         // modificabile solo alla creazione
   hint?: string;                // chiave di traduzione di un suggerimento
-  // Per 'ref': elenco da cui scegliere un record (l'endpoint può dipendere dagli altri valori del modulo).
+  // Per 'ref' e 'refs' (scelta multipla): elenco da cui scegliere record (l'endpoint può dipendere dagli altri valori del modulo).
   refEndpoint?: string | ((values: Values) => string | null);
   refLabel?: (row: any) => string;
   dependsOn?: string;           // si svuota quando cambia il campo indicato
+  defaultValue?: any;           // valore iniziale in creazione (altrimenti vuoto)
 }
 
 export type Values = Record<string, any>;
@@ -44,15 +48,17 @@ interface Unit { id: string; name: string }
 const toLocalInput = (iso: string | null | undefined) => (iso ? iso.slice(0, 16) : '');
 const fromLocalInput = (value: string) => (value ? (value.length === 16 ? `${value}:00` : value) : null);
 
+const isList = (type: FieldType) => type === 'units' || type === 'multiselect' || type === 'refs' || type === 'people';
+
 export const emptyFor = (fields: FieldSpec[]): Values =>
-  Object.fromEntries(fields.map((f) => [f.name, f.type === 'boolean' ? false : f.type === 'units' || f.type === 'multiselect' ? [] : '']));
+  Object.fromEntries(fields.map((f) => [f.name, f.defaultValue !== undefined ? f.defaultValue : f.type === 'boolean' ? false : isList(f.type) ? [] : '']));
 
 export const valuesFromRow = (fields: FieldSpec[], row: any): Values =>
   Object.fromEntries(fields.map((f) => {
     const v = row?.[f.name];
     if (f.type === 'datetime') return [f.name, toLocalInput(v)];
     if (f.type === 'tristate') return [f.name, v === true ? 'yes' : v === false ? 'no' : ''];
-    if (f.type === 'units' || f.type === 'multiselect') return [f.name, v || []];
+    if (isList(f.type)) return [f.name, v || []];
     if (f.type === 'boolean') return [f.name, Boolean(v)];
     return [f.name, v ?? ''];
   }));
@@ -64,14 +70,12 @@ export const bodyFromValues = (fields: FieldSpec[], values: Values): Values =>
     if (f.type === 'datetime') return [f.name, fromLocalInput(v)];
     if (f.type === 'tristate') return [f.name, v === 'yes' ? true : v === 'no' ? false : null];
     if (f.type === 'number') return [f.name, v === '' || v == null ? null : Number(v)];
-    if (f.type === 'boolean' || f.type === 'units' || f.type === 'multiselect') return [f.name, v];
+    if (f.type === 'boolean' || isList(f.type)) return [f.name, v];
     return [f.name, typeof v === 'string' ? (v.trim() === '' ? null : v.trim()) : v];
   }));
 
-// Elenco di record (trattamenti, sistemi, profili...) da cui scegliere; si ricarica se l'endpoint dipende da altri campi.
-const RefSelect: React.FC<{
-  field: FieldSpec; label: string; values: Values; disabled: boolean; onChange: (value: string) => void;
-}> = ({ field, label, values, disabled, onChange }) => {
+// Record dell'endpoint di un campo 'ref'/'refs'; si ricarica se l'endpoint dipende da altri campi.
+const useRefItems = (field: FieldSpec, values: Values) => {
   const endpoint = typeof field.refEndpoint === 'function' ? field.refEndpoint(values) : field.refEndpoint || null;
   const [items, setItems] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
@@ -85,22 +89,32 @@ const RefSelect: React.FC<{
       .catch(() => undefined);
     return () => { live = false; };
   }, [endpoint]);
-  const current = values[field.name] ?? '';
+  return { endpoint, items };
+};
+
+// Elenco di record (trattamenti, sistemi, profili...) da cui scegliere, con ricerca.
+const RefSelect: React.FC<{
+  field: FieldSpec; label: string; values: Values; disabled: boolean; onChange: (value: string) => void;
+}> = ({ field, label, values, disabled, onChange }) => {
+  const { endpoint, items } = useRefItems(field, values);
   return (
-    <FormControl fullWidth disabled={disabled || !endpoint} required={field.required}>
-      <InputLabel>{label}</InputLabel>
-      <Select label={label} value={current} onChange={(e) => onChange(e.target.value as string)}>
-        {!field.required && <MenuItem value="">—</MenuItem>}
-        {current && !items.some((i) => i.id === current) && <MenuItem value={current}>{current}</MenuItem>}
-        {items.map((i) => <MenuItem key={i.id} value={i.id}>{i.label}</MenuItem>)}
-      </Select>
-    </FormControl>
+    <SinglePick label={label} items={items} value={values[field.name] ?? ''} required={field.required}
+      disabled={disabled || !endpoint} onChange={onChange} />
   );
+};
+
+// Più record dello stesso elenco (categorie di dati, trattamenti, corsi...), con ricerca.
+const RefMultiSelect: React.FC<{
+  field: FieldSpec; label: string; values: Values; disabled: boolean; onChange: (value: string[]) => void;
+}> = ({ field, label, values, disabled, onChange }) => {
+  const { endpoint, items } = useRefItems(field, values);
+  return <MultiPick label={label} items={items} value={values[field.name] || []} disabled={disabled || !endpoint} onChange={onChange} />;
 };
 
 export const FormFields: React.FC<{
   fields: FieldSpec[]; values: Values; onChange: (v: Values) => void; units: Unit[]; editing?: boolean;
-}> = ({ fields, values, onChange, units, editing }) => {
+  onUnitAdded?: () => void;                     // una struttura del Portal è stata aggiunta a PrivacyPA
+}> = ({ fields, values, onChange, units, editing, onUnitAdded }) => {
   const { t } = useTranslation('privacypa');
   const set = (name: string, value: any) => {
     const next = { ...values, [name]: value };
@@ -116,10 +130,12 @@ export const FormFields: React.FC<{
         if (f.type === 'boolean') {
           return <FormControlLabel key={f.name} control={<Checkbox checked={Boolean(values[f.name])} disabled={disabled} onChange={(e) => set(f.name, e.target.checked)} />} label={label} />;
         }
-        if (f.type === 'select' || f.type === 'tristate' || f.type === 'unit') {
+        if (f.type === 'unit') {
+          return <UnitPicker key={f.name} label={label} value={values[f.name] ?? ''} required={f.required} disabled={disabled} onChange={(v) => set(f.name, v)} onUnitAdded={onUnitAdded} />;
+        }
+        if (f.type === 'select' || f.type === 'tristate') {
           const items: { value: string; label: string }[] =
-            f.type === 'unit' ? units.map((u) => ({ value: u.id, label: u.name }))
-              : f.type === 'tristate' ? [
+            f.type === 'tristate' ? [
                 { value: '', label: t('wf.tristate.undecided') }, { value: 'yes', label: t('wf.tristate.yes') }, { value: 'no', label: t('wf.tristate.no') },
               ]
                 : (f.options || []).map((o) => ({ value: o, label: t(`wf.enum.${f.enumName || f.name}.${o}`) }));
@@ -133,8 +149,17 @@ export const FormFields: React.FC<{
             </FormControl>
           );
         }
+        if (f.type === 'people') {
+          return <PeopleField key={f.name} label={label} value={values[f.name] || []} required={f.required} hint={hint} onChange={(v) => set(f.name, v)} />;
+        }
+        if (f.type === 'person') {
+          return <PersonField key={f.name} label={label} value={values[f.name] ?? ''} required={f.required} disabled={disabled} hint={hint} onChange={(v) => set(f.name, v)} />;
+        }
         if (f.type === 'ref') {
           return <RefSelect key={f.name} field={f} label={label} values={values} disabled={disabled} onChange={(v) => set(f.name, v)} />;
+        }
+        if (f.type === 'refs') {
+          return <RefMultiSelect key={f.name} field={f} label={label} values={values} disabled={disabled} onChange={(v) => set(f.name, v)} />;
         }
         if (f.type === 'multiselect') {
           const labelOf = (o: string) => t(`wf.enum.${f.enumName || f.name}.${o}`);
@@ -187,6 +212,7 @@ interface Props {
   icon: React.ReactNode;
   endpoint: string;
   perm: string;                                   // prefisso permessi (es. 'breach')
+  permissions?: { create?: string; edit?: string; delete?: string };   // codici diversi da `<perm>.<azione>`
   fields: FieldSpec[];
   columns: { key: string; render: (row: any, units: Unit[]) => React.ReactNode }[];
   actions?: ActionSpec[];
@@ -199,8 +225,11 @@ interface Props {
 
 // Pagina elenco + creazione/modifica + azioni con dati aggiuntivi, per le entità del workflow di conformità.
 export const EntityCrudPage: React.FC<Props> = ({
-  page, icon, endpoint, perm, fields, columns, actions = [], canEditRow, toBody, detail, allowDelete, annotate,
+  page, icon, endpoint, perm, permissions = {}, fields, columns, actions = [], canEditRow, toBody, detail, allowDelete, annotate,
 }) => {
+  const createPermission = permissions.create || `${perm}.create`;
+  const editPermission = permissions.edit || `${perm}.edit`;
+  const deletePermission = permissions.delete || `${perm}.delete`;
   const { t } = useTranslation('privacypa');
   const { can } = usePermissions();
   const [rows, setRows] = useState<any[]>([]);
@@ -222,9 +251,10 @@ export const EntityCrudPage: React.FC<Props> = ({
       setError(err.message);
     }
   };
+  const loadUnits = () => apiClient.get<Unit[]>('/api/privacypa/organizational-units').then(setUnits).catch(() => undefined);
   useEffect(() => {
     load();
-    apiClient.get<Unit[]>('/api/privacypa/organizational-units').then(setUnits).catch(() => undefined);
+    loadUnits();
   }, [endpoint]);
 
   const reloadAndRefreshSelected = async () => {
@@ -291,7 +321,7 @@ export const EntityCrudPage: React.FC<Props> = ({
   };
 
   const rowActions = (row: any) => actions.filter((a) => (!a.visible || a.visible(row)) && (!a.permission || can(a.permission)));
-  const editable = (row: any) => can(`${perm}.edit`) && (!canEditRow || canEditRow(row));
+  const editable = (row: any) => can(editPermission) && (!canEditRow || canEditRow(row));
   const runningFields = running ? [...(running.action.fields || []), ...(running.action.notes ? [{ name: 'notes', type: 'textarea' as FieldType, required: running.action.notes === 'required' }] : [])] : [];
 
   return (
@@ -301,10 +331,10 @@ export const EntityCrudPage: React.FC<Props> = ({
           {icon}
           <Typography variant="h4" fontWeight={600}>{t(`wf.pages.${page}.title`)}</Typography>
           <Box sx={{ flex: 1 }} />
-          {can(`${perm}.create`) && <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog(null)}>{t('wf.add')}</Button>}
+          {can(createPermission) && <Button variant="contained" startIcon={<AddIcon />} onClick={() => openDialog(null)}>{t('wf.add')}</Button>}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t(`wf.pages.${page}.subtitle`)}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         <Paper sx={{ overflowX: 'auto' }}>
@@ -327,7 +357,7 @@ export const EntityCrudPage: React.FC<Props> = ({
                     {rowActions(row).map((a) => (
                       <Button key={a.key} size="small" color={a.color || 'primary'} onClick={() => start(a, row)}>{t(`wf.actions.${a.key}`)}</Button>
                     ))}
-                    {allowDelete && can(`${perm}.delete`) && <Button size="small" color="error" onClick={() => remove(row)}>{t('wf.delete')}</Button>}
+                    {allowDelete && can(deletePermission) && <Button size="small" color="error" onClick={() => remove(row)}>{t('wf.delete')}</Button>}
                   </TableCell>
                 </TableRow>
               ))}
@@ -340,7 +370,7 @@ export const EntityCrudPage: React.FC<Props> = ({
         <DialogTitle>{editing ? t('wf.edit') : t('wf.add')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <FormFields fields={fields} values={values} onChange={setValues} units={units} editing={Boolean(editing)} />
+          <FormFields fields={fields} values={values} onChange={setValues} units={units} editing={Boolean(editing)} onUnitAdded={loadUnits} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
@@ -352,7 +382,7 @@ export const EntityCrudPage: React.FC<Props> = ({
         <DialogTitle>{running ? t(`wf.actions.${running.action.key}`) : ''}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <FormFields fields={runningFields} values={actionValues} onChange={setActionValues} units={units} />
+          <FormFields fields={runningFields} values={actionValues} onChange={setActionValues} units={units} onUnitAdded={loadUnits} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRunning(null)}>{t('common.cancel')}</Button>

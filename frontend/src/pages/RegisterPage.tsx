@@ -27,7 +27,9 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -39,7 +41,10 @@ import DataFlowsPanel from '../components/DataFlowsPanel';
 import { usePermissions } from '../services/permissions';
 import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
+import { PersonField } from '../components/PortalPeople';
+import { MultiPick, UnitPicker } from '../components/UnitPicker';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface ProcessingActivity {
   id: string;
@@ -67,9 +72,9 @@ interface ProcessingActivity {
   legal_bases?: { legal_basis_code: string }[];
   data_subjects?: { category_id: string }[];
   data_categories?: { data_category_id: string }[];
-  assets?: { asset_id: string }[];
-  processors?: { party_id: string }[];
-  recipients?: { party_id: string }[];
+  assets?: { asset_id: string; role?: string; notes?: string | null }[];
+  processors?: { party_id: string; processor_agreement_id?: string | null; contract_id?: string | null; notes?: string | null }[];
+  recipients?: { party_id: string; communication_type?: string; notes?: string | null }[];
 }
 
 interface Unit { id: string; name: string; code: string }
@@ -122,6 +127,14 @@ const emptyForm = {
   recipient_ids: [] as string[],
 };
 
+// Gruppo di campi del dialog con il suo titolo.
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Typography variant="subtitle2" color="primary" sx={{ mt: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</Typography>
+    {children}
+  </Box>
+);
+
 export const RegisterPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
   const { can } = usePermissions();
@@ -146,6 +159,9 @@ export const RegisterPage: React.FC = () => {
   const [versionSnap, setVersionSnap] = useState<any | null>(null);
   const [statusChange, setStatusChange] = useState<{ row: ProcessingActivity; next: string } | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  // Errori del dialog: mostrati dentro il dialog, non nell'avviso della pagina che resta coperto
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
 
   const load = async () => {
     try {
@@ -179,13 +195,17 @@ export const RegisterPage: React.FC = () => {
   const unitName = (id: string | null) => units.find((u) => u.id === id)?.name || '—';
   const statusLabel = (s: string) => t(`register.status.${s}`) || s;
 
+  const reloadUnits = () => apiClient.get<Unit[]>('/api/privacypa/organizational-units').then(setUnits).catch(() => undefined);
+
   const openCreate = () => {
+    setDialogError(null);
     setEditing(null);
     setForm(emptyForm);
     setDialogOpen(true);
   };
 
   const openEdit = async (row: ProcessingActivity) => {
+    setDialogError(null);
     try {
       const full = await apiClient.get<ProcessingActivity>(`/api/privacypa/processing-activities/${row.id}`);
       setEditing(full);
@@ -243,25 +263,38 @@ export const RegisterPage: React.FC = () => {
 
   const save = async () => {
     if (!form.title.trim()) {
-      setError(t('register.title_required'));
+      setDialogError(t('register.title_required'));
+      return;
+    }
+    setDialogError(null);
+    let saved: ProcessingActivity;
+    try {
+      saved = editing
+        ? await apiClient.patch<ProcessingActivity>(`/api/privacypa/processing-activities/${editing.id}`, payload(), { version: editing.row_version })
+        : await apiClient.post<ProcessingActivity>('/api/privacypa/processing-activities', payload());
+    } catch (err: any) {
+      setDialogError(err.message || t('register.save_failed'));
       return;
     }
     try {
-      const saved = editing
-        ? await apiClient.patch<ProcessingActivity>(`/api/privacypa/processing-activities/${editing.id}`, payload(), { version: editing.row_version })
-        : await apiClient.post<ProcessingActivity>('/api/privacypa/processing-activities', payload());
       // Un'unica chiamata per i collegamenti, con la versione appena restituita dal salvataggio (§54).
+      // I collegamenti già presenti mantengono ruolo, nomina, contratto, tipo di comunicazione e note.
+      const kept = <T,>(list: T[] | undefined, match: (x: T) => boolean) => list?.find(match);
       await apiClient.put(`/api/privacypa/processing-activities/${saved.id}/relations`, {
-        assets: form.asset_ids.map((id) => ({ asset_id: id })),
-        processors: form.processor_ids.map((id) => ({ party_id: id })),
-        recipients: form.recipient_ids.map((id) => ({ party_id: id })),
+        assets: form.asset_ids.map((id) => ({ ...kept(editing?.assets, (a) => a.asset_id === id), asset_id: id })),
+        processors: form.processor_ids.map((id) => ({ ...kept(editing?.processors, (p) => p.party_id === id), party_id: id })),
+        recipients: form.recipient_ids.map((id) => ({ ...kept(editing?.recipients, (r) => r.party_id === id), party_id: id })),
       }, { version: saved.row_version });
-      setSuccess(editing ? t('register.updated') : t('register.created'));
-      setDialogOpen(false);
-      await load();
     } catch (err: any) {
-      setError(err.message || t('register.save_failed'));
+      // Il trattamento è salvato: si resta in modifica, così un nuovo «Salva» non ne crea un altro
+      setEditing(await apiClient.get<ProcessingActivity>(`/api/privacypa/processing-activities/${saved.id}`).catch(() => saved));
+      setDialogError(`${t('register.links_failed')} ${err.message || ''}`.trim());
+      await load();
+      return;
     }
+    setSuccess(editing ? t('register.updated') : t('register.created'));
+    setDialogOpen(false);
+    await load();
   };
 
   // Le regole di conservazione e i flussi aggiornano la versione del trattamento: si rilegge per non salvare con una vecchia.
@@ -335,7 +368,7 @@ export const RegisterPage: React.FC = () => {
           </Typography>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
         <Paper>
@@ -482,158 +515,139 @@ export const RegisterPage: React.FC = () => {
         </Paper>
       </Container>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth fullScreen={fullScreen} scroll="paper">
         <DialogTitle>{editing ? `${editing.code} — ${t('register.edit')}` : t('register.add')}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           {editing?.legacy_notes && (
             <Alert severity="info" sx={{ whiteSpace: 'pre-line' }}>{editing.legacy_notes}</Alert>
           )}
-          <TextField
-            label={t('register.fields.title')}
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            required
-            fullWidth
-          />
-          <TextField
-            label={t('register.fields.description')}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            multiline
-            minRows={2}
-            fullWidth
-          />
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.unit')}</InputLabel>
-            <Select
+
+          <Section title={t('register.sections.general')}>
+            <TextField
+              label={t('register.fields.title')}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+              fullWidth
+              autoFocus={!editing}
+            />
+            <TextField
+              label={t('register.fields.description')}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              multiline
+              minRows={2}
+              fullWidth
+            />
+            <UnitPicker
               label={t('register.fields.unit')}
               value={form.organizational_unit_id}
-              onChange={(e) => setForm({ ...form, organizational_unit_id: e.target.value })}
-            >
-              <MenuItem value="">{t('register.no_unit')}</MenuItem>
-              {units.map((u) => (
-                <MenuItem key={u.id} value={u.id}>{u.code} — {u.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            label={t('register.fields.purpose_summary')}
-            value={form.purpose_summary}
-            onChange={(e) => setForm({ ...form, purpose_summary: e.target.value })}
-            multiline
-            minRows={2}
-            fullWidth
-          />
-          <TextField
-            label={t('register.fields.purposes')}
-            helperText={t('register.fields.purposes_hint')}
-            value={form.purposesText}
-            onChange={(e) => setForm({ ...form, purposesText: e.target.value })}
-            multiline
-            minRows={3}
-            fullWidth
-          />
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.legal_bases')}</InputLabel>
-            <Select
-              multiple
+              onChange={(id) => setForm((f) => ({ ...f, organizational_unit_id: id }))}
+              onUnitAdded={reloadUnits}
+            />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <PersonField
+                label={t('register.fields.owner')}
+                value={form.owner_user_id}
+                onChange={(v) => setForm((f) => ({ ...f, owner_user_id: v }))}
+              />
+              <PersonField
+                label={t('register.fields.privacy_referent')}
+                value={form.privacy_referent_user_id}
+                onChange={(v) => setForm((f) => ({ ...f, privacy_referent_user_id: v }))}
+              />
+            </Box>
+          </Section>
+
+          <Section title={t('register.sections.purposes')}>
+            <TextField
+              label={t('register.fields.purpose_summary')}
+              value={form.purpose_summary}
+              onChange={(e) => setForm({ ...form, purpose_summary: e.target.value })}
+              multiline
+              minRows={2}
+              fullWidth
+            />
+            <TextField
+              label={t('register.fields.purposes')}
+              helperText={t('register.fields.purposes_hint')}
+              value={form.purposesText}
+              onChange={(e) => setForm({ ...form, purposesText: e.target.value })}
+              multiline
+              minRows={3}
+              fullWidth
+            />
+            <MultiPick
               label={t('register.fields.legal_bases')}
+              items={legalBases.map((b) => ({ id: b.code, label: `${b.code} — ${b.description}` }))}
               value={form.legal_basis_codes}
-              onChange={(e) => setForm({ ...form, legal_basis_codes: e.target.value as string[] })}
-            >
-              {legalBases.map((b) => (
-                <MenuItem key={b.code} value={b.code}>{b.code} — {b.description}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.subjects')}</InputLabel>
-            <Select
-              multiple
+              onChange={(ids) => setForm((f) => ({ ...f, legal_basis_codes: ids }))}
+            />
+          </Section>
+
+          <Section title={t('register.sections.data')}>
+            <MultiPick
               label={t('register.fields.subjects')}
+              items={subjects.map((x) => ({ id: x.id, label: x.name }))}
               value={form.data_subject_ids}
-              onChange={(e) => setForm({ ...form, data_subject_ids: e.target.value as string[] })}
-            >
-              {subjects.map((s) => (
-                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.assets')}</InputLabel>
-            <Select
-              multiple
-              label={t('register.fields.assets')}
-              value={form.asset_ids}
-              onChange={(e) => setForm({ ...form, asset_ids: e.target.value as string[] })}
-            >
-              {assets.map((a) => (
-                <MenuItem key={a.id} value={a.id}>{a.code} — {a.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.processors')}</InputLabel>
-            <Select
-              multiple
-              label={t('register.fields.processors')}
-              value={form.processor_ids}
-              onChange={(e) => setForm({ ...form, processor_ids: e.target.value as string[] })}
-            >
-              {parties.map((p) => (
-                <MenuItem key={p.id} value={p.id}>{p.code} — {p.legal_name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.recipients')}</InputLabel>
-            <Select
-              multiple
-              label={t('register.fields.recipients')}
-              value={form.recipient_ids}
-              onChange={(e) => setForm({ ...form, recipient_ids: e.target.value as string[] })}
-            >
-              {parties.map((p) => (
-                <MenuItem key={p.id} value={p.id}>{p.code} — {p.legal_name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.data_categories')}</InputLabel>
-            <Select
-              multiple
+              onChange={(ids) => setForm((f) => ({ ...f, data_subject_ids: ids }))}
+            />
+            <MultiPick
               label={t('register.fields.data_categories')}
+              items={dataCats.map((c) => ({ id: c.id, label: dataCatLabel(c) }))}
               value={form.data_category_ids}
-              onChange={(e) => setForm({ ...form, data_category_ids: e.target.value as string[] })}
-            >
-              {dataCats.map((c) => (
-                <MenuItem key={c.id} value={c.id}>{dataCatLabel(c)}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
-            <TextField type="date" label={t('register.fields.start_date')} InputLabelProps={{ shrink: true }} value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
-            <TextField type="date" label={t('register.fields.last_review')} InputLabelProps={{ shrink: true }} value={form.last_review_date} onChange={(e) => setForm({ ...form, last_review_date: e.target.value })} />
-            <TextField type="date" label={t('register.fields.next_review')} InputLabelProps={{ shrink: true }} value={form.next_review_date} onChange={(e) => setForm({ ...form, next_review_date: e.target.value })} />
-          </Box>
-          <FormControl fullWidth>
-            <InputLabel>{t('register.fields.confidentiality')}</InputLabel>
-            <Select
-              label={t('register.fields.confidentiality')}
-              value={form.confidentiality_level}
-              onChange={(e) => setForm({ ...form, confidentiality_level: e.target.value })}
-            >
-              {['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'].map((lvl) => (
-                <MenuItem key={lvl} value={lvl}>{t(`register.confidentiality.${lvl}`)}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Box>
-            <FormControlLabel control={<Switch checked={form.automated_decision} onChange={(e) => setForm({ ...form, automated_decision: e.target.checked })} />} label={t('register.fields.automated_decision')} />
-            <FormControlLabel control={<Switch checked={form.profiling} onChange={(e) => setForm({ ...form, profiling: e.target.checked })} />} label={t('register.fields.profiling')} />
-            <FormControlLabel control={<Switch checked={form.mandatory_provision} onChange={(e) => setForm({ ...form, mandatory_provision: e.target.checked })} />} label={t('register.fields.mandatory_provision')} />
-          </Box>
-          {editing && (
+              onChange={(ids) => setForm((f) => ({ ...f, data_category_ids: ids }))}
+            />
+          </Section>
+
+          <Section title={t('register.sections.systems')}>
+            <MultiPick
+              label={t('register.fields.assets')}
+              items={assets.map((a) => ({ id: a.id, label: `${a.code} — ${a.name}` }))}
+              value={form.asset_ids}
+              onChange={(ids) => setForm((f) => ({ ...f, asset_ids: ids }))}
+            />
+            <MultiPick
+              label={t('register.fields.processors')}
+              items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))}
+              value={form.processor_ids}
+              onChange={(ids) => setForm((f) => ({ ...f, processor_ids: ids }))}
+            />
+            <MultiPick
+              label={t('register.fields.recipients')}
+              items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))}
+              value={form.recipient_ids}
+              onChange={(ids) => setForm((f) => ({ ...f, recipient_ids: ids }))}
+            />
+          </Section>
+
+          <Section title={t('register.sections.other')}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
+              <TextField type="date" label={t('register.fields.start_date')} InputLabelProps={{ shrink: true }} value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+              <TextField type="date" label={t('register.fields.last_review')} InputLabelProps={{ shrink: true }} value={form.last_review_date} onChange={(e) => setForm({ ...form, last_review_date: e.target.value })} />
+              <TextField type="date" label={t('register.fields.next_review')} InputLabelProps={{ shrink: true }} value={form.next_review_date} onChange={(e) => setForm({ ...form, next_review_date: e.target.value })} />
+            </Box>
+            <FormControl fullWidth>
+              <InputLabel>{t('register.fields.confidentiality')}</InputLabel>
+              <Select
+                label={t('register.fields.confidentiality')}
+                value={form.confidentiality_level}
+                onChange={(e) => setForm({ ...form, confidentiality_level: e.target.value })}
+              >
+                {['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'].map((lvl) => (
+                  <MenuItem key={lvl} value={lvl}>{t(`register.confidentiality.${lvl}`)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box>
+              <FormControlLabel control={<Switch checked={form.automated_decision} onChange={(e) => setForm({ ...form, automated_decision: e.target.checked })} />} label={t('register.fields.automated_decision')} />
+              <FormControlLabel control={<Switch checked={form.profiling} onChange={(e) => setForm({ ...form, profiling: e.target.checked })} />} label={t('register.fields.profiling')} />
+              <FormControlLabel control={<Switch checked={form.mandatory_provision} onChange={(e) => setForm({ ...form, mandatory_provision: e.target.checked })} />} label={t('register.fields.mandatory_provision')} />
+            </Box>
+          </Section>
+
+          {editing ? (
             <>
               <RetentionRulesPanel
                 processingId={editing.id}
@@ -654,6 +668,8 @@ export const RegisterPage: React.FC = () => {
                 onChanged={refreshEditing}
               />
             </>
+          ) : (
+            <Typography variant="caption" color="text.secondary">{t('register.after_create_hint')}</Typography>
           )}
         </DialogContent>
         <DialogActions>
@@ -667,7 +683,7 @@ export const RegisterPage: React.FC = () => {
         <DialogContent>
           {versions.length === 0 && <Typography variant="body2" color="text.secondary">{t('register.no_versions')}</Typography>}
           {versions.map((v) => (
-            <Box key={v.id} sx={{ py: 1, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box key={v.id} sx={{ py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 2, alignItems: 'center' }}>
               <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>v{v.version_no}</Typography>
               <Chip size="small" label={v.reason} />
               <Typography variant="caption">{v.created_at?.replace('T', ' ').slice(0, 19)} · {v.created_by}</Typography>

@@ -23,6 +23,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
+import { PersonField } from './PortalPeople';
 
 interface PrivacyRole {
   code: string;
@@ -100,9 +102,12 @@ export const PrivacyRolesPanel: React.FC = () => {
     }
   };
 
-  const handleUserIdBlur = () => {
-    loadAssignments(userId);
-  };
+  // Le assegnazioni della persona si ricaricano quando la si sceglie (o si smette di scrivere)
+  useEffect(() => {
+    if (!userId.trim()) return undefined;
+    const timer = setTimeout(() => loadAssignments(userId), 400);
+    return () => clearTimeout(timer);
+  }, [userId]);
 
   const roleName = (code: string) => catalog.find((r) => r.code === code)?.name || code;
   const unitName = (id: string | null) => units.find((u) => u.id === id)?.name || '—';
@@ -148,11 +153,7 @@ export const PrivacyRolesPanel: React.FC = () => {
 
   return (
     <Paper sx={{ p: 3 }}>
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {success && (
         <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 2 }}>
           {success}
@@ -191,12 +192,11 @@ export const PrivacyRolesPanel: React.FC = () => {
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} sm={4}>
-          <TextField
-            label={t('organization.roles.user_id') || 'ID utente (email/sub Portal)'}
+          <PersonField
+            label={t('organization.roles.user_id') || 'Utente'}
             value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            onBlur={handleUserIdBlur}
-            fullWidth
+            hint={t('organization.roles.user_hint') || undefined}
+            onChange={setUserId}
           />
         </Grid>
         <Grid item xs={12} sm={3}>

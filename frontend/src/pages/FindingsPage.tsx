@@ -11,6 +11,7 @@ import StatusNotesDialog from '../components/StatusNotesDialog';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 type Severity = 'HIGH' | 'MEDIUM' | 'LOW';
 type FindingStatus = 'OPEN' | 'ACKNOWLEDGED' | 'ACCEPTED' | 'RESOLVED';
@@ -163,7 +164,7 @@ export const FindingsPage: React.FC = () => {
           {can('finding.edit') && <Button variant="outlined" onClick={recalculate}>{t('findings.recalculate')}</Button>}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('findings.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>

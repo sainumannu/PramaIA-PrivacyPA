@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography,
 } from '@mui/material';
@@ -13,6 +13,7 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface Doc {
   id: string; code: string; title: string; document_type: string; status: string;
@@ -69,7 +70,7 @@ export const DocumentsPage: React.FC = () => {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>{t('documents.add')}</Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('documents.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         <Paper>
           <Table size="small">
             <TableHead><TableRow>

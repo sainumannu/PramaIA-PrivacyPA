@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Container, List, ListItemButton, ListItemText, Paper, TextField, Typography } from '@mui/material';
+import { Box, Button, Container, List, ListItemButton, ListItemText, Paper, TextField, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface Results {
   query: string;
@@ -74,7 +75,7 @@ export const SearchPage: React.FC = () => {
           }} placeholder={t('search.placeholder')} />
           <Button variant="contained" onClick={() => { setParams({ q }); run(q); }}>{t('search.run')}</Button>
         </Box>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {results && results.total === 0 && <Typography color="text.secondary">{t('search.none')}</Typography>}
         {results && groups.map((g) => {
           const rows = (results[g.key] as any[]) || [];

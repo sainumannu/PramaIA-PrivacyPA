@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from backend.db.database import engine  # noqa: E402
 from backend.db.init_db import init_database  # noqa: E402
 from backend.db.seed_privacypa import seed_privacypa_foundations  # noqa: E402
-from backend.routers import example_router, settings_router, license_router, permissions_router, setup_router, backup_router  # noqa: E402
+from backend.routers import example_router, settings_router, license_router, permissions_router, setup_router, backup_router, tenants_router  # noqa: E402
 from backend.routers import privacypa_organization_router, privacypa_identity_router, privacypa_catalog_router  # noqa: E402
 from backend.routers import privacypa_processing_router  # noqa: E402
 from backend.routers import privacypa_asset_router, privacypa_party_router  # noqa: E402
@@ -23,6 +23,7 @@ from backend.routers import privacypa_dpia_router, privacypa_transfer_router, pr
 from backend.services.license_service import LicenseService  # noqa: E402
 from backend.services.privacypa_webhook_service import run_worker  # noqa: E402
 from backend.services.backup_scheduler import start_backup_scheduler, stop_backup_scheduler  # noqa: E402
+from backend.services.privacypa_findings_scheduler import start_findings_scheduler, stop_findings_scheduler  # noqa: E402
 from backend.utils.logging import setup_logging, get_logger  # noqa: E402
 from backend.middleware import LoggingMiddleware  # noqa: E402
 from backend.middleware.security import RateLimitMiddleware, RequestContextMiddleware, SecurityHeadersMiddleware  # noqa: E402
@@ -31,7 +32,7 @@ from backend.routers import privacypa_approval_router, privacypa_policy_router  
 from backend.routers import privacypa_retention_router, privacypa_supply_router, privacypa_findings_router  # noqa: E402
 from backend.routers import privacypa_outbox_router, privacypa_export_router  # noqa: E402
 from backend.routers import privacypa_notice_router, privacypa_dataflow_router, privacypa_workflow_router  # noqa: E402
-from backend.routers import privacypa_people_router, privacypa_dpo_router, privacypa_project_router, privacypa_annotation_router, privacypa_query_router, privacypa_webhook_router, privacypa_integration_router  # noqa: E402
+from backend.routers import privacypa_people_router, privacypa_dpo_router, privacypa_project_router, privacypa_annotation_router, privacypa_query_router, privacypa_webhook_router, privacypa_integration_router, privacypa_access_router  # noqa: E402
 from backend.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 from backend.db.database import AsyncSessionLocal  # noqa: E402
 from backend.api_errors import register_error_handlers  # noqa: E402
@@ -78,6 +79,12 @@ async def lifespan(app: FastAPI):
         await start_backup_scheduler()
     except Exception as e:
         logger.error(f"Failed to start backup scheduler: {e}")
+
+    # Valutazione giornaliera delle regole (segnalazioni e webhook come authorization.expired_not_revoked)
+    try:
+        await start_findings_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to start findings scheduler: {e}")
     
     # Consegna dei webhook (§70): ciclo in background, disattivabile con WEBHOOK_WORKER=false (allora si usa POST /webhooks/dispatch).
     webhook_stop, webhook_task = asyncio.Event(), None
@@ -100,6 +107,11 @@ async def lifespan(app: FastAPI):
         await stop_backup_scheduler()
     except Exception as e:
         logger.error(f"Failed to stop backup scheduler: {e}")
+
+    try:
+        await stop_findings_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to stop findings scheduler: {e}")
     
     logger.info(f"{APP_NAME} shutting down")
 
@@ -155,6 +167,7 @@ app.include_router(settings_router.router)
 app.include_router(license_router.router)
 app.include_router(permissions_router.router)
 app.include_router(backup_router.router)
+app.include_router(tenants_router.router)
 app.include_router(privacypa_organization_router.router)
 app.include_router(privacypa_identity_router.router)
 app.include_router(privacypa_catalog_router.router)
@@ -185,6 +198,7 @@ app.include_router(privacypa_annotation_router.router)
 app.include_router(privacypa_query_router.router)
 app.include_router(privacypa_webhook_router.router)
 app.include_router(privacypa_integration_router.router)
+app.include_router(privacypa_access_router.router)
 
 
 @app.get("/api/config")

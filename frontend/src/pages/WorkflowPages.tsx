@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import GavelIcon from '@mui/icons-material/Gavel';
 import BuildIcon from '@mui/icons-material/Build';
 import ReportIcon from '@mui/icons-material/ReportProblem';
@@ -8,9 +8,11 @@ import FactCheckIcon from '@mui/icons-material/FactCheck';
 import {
   ActionSpec, EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, missingRequired, postAction,
 } from '../components/EntityCrud';
+import { PersonName } from '../components/PortalPeople';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const unitName = (units: { id: string; name: string }[], id: string | null) => units.find((u) => u.id === id)?.name || '—';
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
@@ -53,14 +55,14 @@ export const CorrectiveActionsPage: React.FC = () => (
       { name: 'source_type', type: 'select', options: ['MANUAL', 'DPO_RECOMMENDATION', 'SECURITY_ASSESSMENT'], enumName: 'actionSource', required: true, createOnly: true },
       { name: 'title', type: 'text', required: true }, { name: 'description', type: 'textarea', required: true },
       { name: 'priority', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], enumName: 'priority', required: true },
-      { name: 'owner_user_id', type: 'text', required: true }, { name: 'organizational_unit_id', type: 'unit' },
+      { name: 'owner_user_id', type: 'person', required: true }, { name: 'organizational_unit_id', type: 'unit' },
       { name: 'due_date', type: 'date', required: true },
     ]}
     toBody={(body, editing) => (editing ? { ...body, source_type: editing.source_type, source_id: editing.source_id, evidence_document_id: editing.evidence_document_id } : body)}
     columns={[
       { key: 'code', render: (r) => r.code }, { key: 'title', render: (r) => r.title },
       { key: 'priority', render: (r) => <StatusChip enumName="priority" value={r.priority} color={r.priority === 'CRITICAL' || r.priority === 'HIGH' ? 'warning' : 'default'} /> },
-      { key: 'owner', render: (r) => r.owner_user_id },
+      { key: 'owner', render: (r) => <PersonName id={r.owner_user_id} /> },
       { key: 'due_date', render: (r) => <span style={{ color: !closed(r) && isPast(r.due_date) ? '#ef4444' : undefined }}>{day(r.due_date)}</span> },
       { key: 'source', render: (r) => <StatusChip enumName="actionSource" value={r.source_type} /> },
       { key: 'status', render: (r) => <StatusChip enumName="actionStatus" value={r.status} color={r.status === 'COMPLETED' ? 'success' : 'default'} /> },
@@ -86,7 +88,7 @@ export const BreachesPage: React.FC = () => {
   const fields: FieldSpec[] = [
     { name: 'title', type: 'text', required: true }, { name: 'organizational_unit_id', type: 'unit', required: true },
     { name: 'aware_at', type: 'datetime', required: true, createOnly: true, hint: 'wf.hints.aware_at' },
-    { name: 'detected_at', type: 'datetime' }, { name: 'reported_by', type: 'text' },
+    { name: 'detected_at', type: 'datetime' }, { name: 'reported_by', type: 'person' },
     { name: 'description', type: 'textarea', required: true }, { name: 'confidentiality_level', type: 'select', options: ['INTERNAL', 'RESTRICTED', 'HIGHLY_RESTRICTED'], enumName: 'confidentiality' },
     { name: 'confidentiality_affected', type: 'boolean' }, { name: 'integrity_affected', type: 'boolean' }, { name: 'availability_affected', type: 'boolean' },
     { name: 'approx_data_subjects', type: 'number' }, { name: 'approx_records', type: 'number' },
@@ -186,7 +188,7 @@ const FINDING_FIELDS: FieldSpec[] = [
   { name: 'title', type: 'text', required: true }, { name: 'description', type: 'textarea', required: true }, { name: 'evidence', type: 'textarea' },
 ];
 const FROM_FINDING_FIELDS: FieldSpec[] = [
-  { name: 'owner_user_id', type: 'text', required: true }, { name: 'due_date', type: 'date', required: true },
+  { name: 'owner_user_id', type: 'person', required: true }, { name: 'due_date', type: 'date', required: true },
   { name: 'priority', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], enumName: 'priority', required: true },
 ];
 
@@ -216,7 +218,7 @@ const AuditDetail: React.FC<{ audit: any; reload: () => Promise<void>; units: { 
 
   return (
     <>
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       <Typography variant="body2">{t('wf.fields.planned_date')}: {day(detail.planned_date)} · {t('wf.fields.lead_auditor_user_id')}: {detail.lead_auditor_user_id} · {unitName(units, detail.organizational_unit_id)}</Typography>
       {detail.summary && <Typography variant="body2" color="text.secondary">{detail.summary}</Typography>}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -225,7 +227,7 @@ const AuditDetail: React.FC<{ audit: any; reload: () => Promise<void>; units: { 
       </Box>
       {(detail.findings || []).length === 0 && <Typography variant="body2" color="text.secondary">{t('wf.audit.no_findings')}</Typography>}
       {(detail.findings || []).map((f: any) => (
-        <Box key={f.id} sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', py: 0.75 }}>
+        <Box key={f.id} sx={{ borderTop: 1, borderColor: 'divider', py: 0.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <StatusChip enumName="severity" value={f.severity} color={f.severity === 'HIGH' ? 'error' : f.severity === 'MEDIUM' ? 'warning' : 'default'} />
             <Typography variant="body2" sx={{ flex: 1 }}><strong>{f.title}</strong></Typography>
@@ -260,7 +262,7 @@ export const AuditsPage: React.FC = () => (
       { name: 'title', type: 'text', required: true },
       { name: 'audit_type', type: 'select', options: ['INTERNAL', 'EXTERNAL', 'PROCESSOR', 'SECURITY', 'DPO_REVIEW'], enumName: 'auditType', required: true },
       { name: 'organizational_unit_id', type: 'unit' }, { name: 'planned_date', type: 'date', required: true },
-      { name: 'lead_auditor_user_id', type: 'text', required: true },
+      { name: 'lead_auditor_user_id', type: 'person', required: true },
     ]}
     columns={[
       { key: 'code', render: (r) => r.code }, { key: 'title', render: (r) => r.title },

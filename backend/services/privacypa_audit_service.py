@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models.privacypa_audit import AuditLog, ActorType
 from backend.services.privacypa_outbox_service import enqueue
 from backend.services.privacypa_webhook_events import fan_out_event
-from backend.utils.request_context import get_request_id
+from backend.utils.request_context import get_on_behalf_of, get_request_id, is_service_account
 
 
 class AuditService:
@@ -31,6 +31,9 @@ class AuditService:
         metadata: dict | None = None,
         request_id: str | None = None,
     ) -> AuditLog:
+        behalf = get_on_behalf_of()
+        if behalf and is_service_account(actor_user_id):
+            metadata = {**(metadata or {}), "on_behalf_of": behalf}
         entry = AuditLog(
             tenant_id=tenant_id,
             entity_type=entity_type,

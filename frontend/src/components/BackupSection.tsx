@@ -42,6 +42,7 @@ import {
 import { apiClient } from '../services/apiClient';
 import { authGuard } from '../services/authGuard';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface BackupConfig {
   enabled: boolean;
@@ -240,7 +241,7 @@ export const BackupSection: React.FC = () => {
 
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
       {/* Configuration Panel */}

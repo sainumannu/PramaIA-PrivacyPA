@@ -55,6 +55,11 @@ def register_app(admin_token: str) -> bool:
         "url": app_url,
         "backend_url": backend_url,
         "enabled": True,
+        # Collegamenti in ingresso (ModuleLink del Portal): il Portal emette all'HelpDesk i token con
+        # audience = PrivacyPA solo se il collegamento è attivo (vedi INTEGRAZIONE_HELPDESK.md).
+        "incoming_links_manifest": [
+            {"source_app_id": "pramaia-helpdesk", "purpose": "access_requests", "path": "/api/privacypa"},
+        ],
     }
     
     # Headers con autenticazione
@@ -85,10 +90,22 @@ def register_app(admin_token: str) -> bool:
             return True
             
         elif response.status_code == 409:
-            print("⚠️  L'applicativo è già registrato nel Portal")
-            print()
-            print("Per aggiornare la configurazione, usa l'interfaccia admin del Portal")
-            print(f"oppure elimina la vecchia registrazione e riesegui questo script.")
+            print("ℹ️  L'applicativo è già registrato nel Portal")
+            # Aggiorna solo i collegamenti in entrata: il Portal crea quelli mancanti (es. HelpDesk → PrivacyPA
+            # dopo un aggiornamento). Il resto della configurazione resta quello impostato dall'amministratore.
+            update = requests.patch(
+                f"{register_url}/{APP_ID}",
+                json={"incoming_links_manifest": payload["incoming_links_manifest"]},
+                headers=headers, timeout=10,
+            )
+            if update.status_code == 200:
+                print("✅ Collegamenti tra moduli aggiornati (quelli delle app già registrate sono attivi)")
+                print()
+                print("Per aggiornare il resto della configurazione usa l'interfaccia admin del Portal.")
+                return True
+            print(f"❌ Aggiornamento dei collegamenti non riuscito: {update.status_code}")
+            print(f"   Risposta: {update.text}")
+            print("   Crea il collegamento a mano nel Portal, in 'Collegamenti tra moduli'.")
             return False
             
         elif response.status_code == 401:

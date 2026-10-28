@@ -7,6 +7,7 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 const VISIBILITIES = ['TEAM', 'DPO_ONLY', 'PRIVATE', 'ALL_AUTHORIZED'];
 const stamp = (iso: string | null) => (iso ? iso.replace('T', ' ').slice(0, 16) : '');
@@ -59,7 +60,7 @@ export const AnnotationsPanel: React.FC<{ entityType: string; entityId: string }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {info && <Alert severity="success" onClose={() => setInfo(null)}>{info}</Alert>}
 
       <Box>

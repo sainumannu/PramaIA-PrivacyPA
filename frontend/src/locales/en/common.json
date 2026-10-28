@@ -3,6 +3,16 @@
     "title": "PrivacyManager",
     "version": "v1.0.0"
   },
+  "header": {
+    "tenant": "Tenant",
+    "tenant_loading": "Loading tenants...",
+    "tenant_none": "No tenant",
+    "tenant_switch_failed": "Unable to switch tenant. Please try again.",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_blue": "Blue"
+  },
   "navigation": {
     "home": "Home",
     "settings": "Settings",

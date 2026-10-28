@@ -26,6 +26,7 @@ import FolderOffIcon from '@mui/icons-material/FolderOff';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface DemoSection {
   code: string;
@@ -104,11 +105,7 @@ export const DemoDataPanel: React.FC = () => {
         {t('demo.subtitle')}
       </Typography>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {info && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>
           {info}

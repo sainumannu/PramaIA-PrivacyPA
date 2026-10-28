@@ -17,6 +17,7 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface SetupData {
   setup_method: 'fetch' | 'manual';
@@ -518,7 +519,7 @@ const SetupWizardPage: React.FC = () => {
               </Alert>
             )}
 
-            {error && <Alert severity="error">{error}</Alert>}
+            <ErrorBanner message={error} onClose={() => setError('')} />
           </Box>
         );
 

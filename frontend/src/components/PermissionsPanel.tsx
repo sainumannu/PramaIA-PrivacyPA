@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -264,11 +265,7 @@ export const PermissionsPanel: React.FC = () => {
 
   return (
     <Paper sx={{ width: '100%', mt: 2 }}>
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {success && (
         <Alert severity="success" onClose={() => setSuccess(null)} sx={{ m: 2 }}>
           {success}

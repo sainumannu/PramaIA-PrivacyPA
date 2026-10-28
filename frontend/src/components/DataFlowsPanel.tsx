@@ -8,6 +8,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from './ErrorBanner';
 
 interface Flow {
   id: string; row_version: number; source_type: string; source_id: string | null; source_label: string | null;
@@ -164,7 +165,7 @@ export const DataFlowsPanel: React.FC<Props> = ({ processingId, categories, canE
   };
 
   return (
-    <Box sx={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, p: 1.5 }}>
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="subtitle2" sx={{ flex: 1 }}>{t('flows.title')}</Typography>
         <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, v) => v && setView(v)}>
@@ -173,11 +174,11 @@ export const DataFlowsPanel: React.FC<Props> = ({ processingId, categories, canE
         </ToggleButtonGroup>
         {canEdit && <Button size="small" startIcon={<AddIcon />} onClick={() => openDialog(null)}>{t('flows.add')}</Button>}
       </Box>
-      {error && <Alert severity="error" sx={{ my: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      <ErrorBanner message={error} onClose={() => setError(null)} />
       {flows.length === 0 && <Typography variant="body2" color="text.secondary">{t('flows.empty')}</Typography>}
 
       {view === 'list' && flows.map((f) => (
-        <Box key={f.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <Box key={f.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderTop: 1, borderColor: 'divider' }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="body2">
               <strong>{nameOf(f.source_type, f.source_id, f.source_label)}</strong>{' → '}<strong>{nameOf(f.target_type, f.target_id, f.target_label)}</strong>

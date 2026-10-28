@@ -32,6 +32,7 @@ import DpiaPage from './pages/DpiaPage';
 import TransfersPage from './pages/TransfersPage';
 import RisksPage from './pages/RisksPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import { TenantProvider } from './services/tenantContext';
 
 // Inizializza i18n
 import './i18n/i18n';
@@ -77,6 +78,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
+        <TenantProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/setup" element={<SetupWizardPage />} />
@@ -148,6 +150,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </TenantProvider>
       </Suspense>
     </ErrorBoundary>
   );

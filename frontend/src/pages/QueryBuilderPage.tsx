@@ -10,6 +10,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const API = '/api/privacypa/queries';
 const NO_VALUE = ['is_null', 'is_not_null'];
@@ -174,7 +175,7 @@ export const QueryBuilderPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('query.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('query.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {info && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setInfo(null)}>{info}</Alert>}
 
         {schema && entity && (

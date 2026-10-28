@@ -21,6 +21,8 @@ class WebhookEvent:
     prefixes: tuple[str, ...]                 # prefissi del tipo evento sull'outbox
     entity_type: str | None = None            # tipo dell'elemento (eventi da audit)
     rules: dict[str, str] | None = None       # eventi da verifiche di conformità: codice regola → tipo dell'elemento
+    aggregates: tuple[str, ...] | None = None  # solo eventi dell'outbox su questi tipi di elemento (es. approvazioni di un certo tipo)
+    requires: tuple[str, ...] = ()            # solo se il payload contiene questi dati (es. accessi registrati dall'HelpDesk)
 
 
 EVENTS: dict[str, WebhookEvent] = {e.name: e for e in (
@@ -34,14 +36,25 @@ EVENTS: dict[str, WebhookEvent] = {e.name: e for e in (
     WebhookEvent("dpia.review_due", "Una DPIA va rivista", ("finding.opened",), rules={"DPIA_REVIEW_DUE": "dpia"}),
     WebhookEvent("document.expiring", "La versione corrente di un documento scade a breve", ("finding.opened",), rules={"DOCUMENT_EXPIRING": "document"}),
     WebhookEvent("finding.opened", "Si è aperta una verifica di conformità (qualsiasi regola)", ("finding.opened",), entity_type="compliance_finding"),
+    WebhookEvent("access_approval.decided", "Il privacy manager ha deciso su una richiesta di accesso non standard",
+                 ("approval.approved", "approval.rejected", "approval.changes_requested"), entity_type="access_assessment",
+                 aggregates=("access_assessment",)),
+    WebhookEvent("authorization_profile.updated", "Un profilo di accesso è cambiato o è stato disattivato",
+                 ("authorization_profile.update", "authorization_profile.delete"), entity_type="authorization_profile"),
+    WebhookEvent("authorization.expired_not_revoked", "Un accesso registrato dall'HelpDesk è scaduto e non risulta revocato",
+                 ("finding.opened",), rules={"AUTHORIZATION_EXPIRED_NOT_REVOKED": "authorization"}, requires=("source_ref",)),
 )}
 
 
-def matching_events(event_type: str, data: dict) -> list[tuple[str, str, str | None]]:
+def matching_events(event_type: str, data: dict, aggregate_type: str | None = None) -> list[tuple[str, str, str | None]]:
     """(nome logico, tipo dell'elemento, id dell'elemento) degli eventi del catalogo a cui corrisponde un evento dell'outbox."""
     out = []
     for ev in EVENTS.values():
         if not event_type.startswith(ev.prefixes):
+            continue
+        if ev.aggregates is not None and aggregate_type not in ev.aggregates:
+            continue
+        if any(not data.get(key) for key in ev.requires):
             continue
         if ev.rules is not None:
             entity_type = ev.rules.get(data.get("rule_code"))
@@ -64,7 +77,7 @@ async def fan_out_event(db, event) -> int:
     """Crea le consegne per un evento appena accodato sull'outbox (stessa transazione). Restituisce quante ne ha create."""
     payload = event.payload or {}
     data = payload.get("data") or {}
-    matches = matching_events(event.event_type, data)
+    matches = matching_events(event.event_type, data, event.aggregate_type)
     if not matches:
         return 0
     subs = (await db.execute(select(WebhookSubscription).where(

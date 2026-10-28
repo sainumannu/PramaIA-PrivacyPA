@@ -10,6 +10,7 @@ import { DeadlinesPanel } from '../components/DeadlinesPanel';
 import { apiClient } from '../services/apiClient';
 import { refreshPermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 interface PermissionRow {
   code: string;
@@ -109,7 +110,7 @@ export const PolicyPage: React.FC = () => {
           <Typography variant="h4" fontWeight={600}>{t('policy.title')}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('policy.subtitle')}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+        <ErrorBanner message={error} onClose={() => setError(null)} />
         {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
 
         {segregation && (

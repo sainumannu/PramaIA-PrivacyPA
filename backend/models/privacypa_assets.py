@@ -96,6 +96,10 @@ class Asset(Base):
         nullable=False,
         default=ConfidentialityLevel.INTERNAL,
     )
+    # Responsabile della banca dati: chi autorizza gli accessi (proposto negli estremi delle richieste di accesso).
+    data_owner_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_owner_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_owner_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -127,6 +131,9 @@ class Asset(Base):
             "go_live_date": self.go_live_date.isoformat() if self.go_live_date else None,
             "retirement_date": self.retirement_date.isoformat() if self.retirement_date else None,
             "confidentiality_level": self.confidentiality_level.value if self.confidentiality_level else None,
+            "data_owner_name": self.data_owner_name,
+            "data_owner_role": self.data_owner_role,
+            "data_owner_user_id": self.data_owner_user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
