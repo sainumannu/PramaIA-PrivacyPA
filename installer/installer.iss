@@ -11,7 +11,7 @@
 ; ============================================================================
 
 #define MyAppName      "PramaIA-PrivacyManager"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "PramaIA Platform"
 #define MyAppURL       "https://pramaia.ai"
 #define MyAppExeName   "PramaIA-PrivacyManager.exe"
@@ -400,6 +400,7 @@ begin
   { 3) Brief wait for Windows to release handles }
   Sleep(1000);
 end;
+
 
 
 
