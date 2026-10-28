@@ -137,6 +137,7 @@ const
   ServiceWaitSeconds = 90;
 
 var
+  DataPage: TInputOptionWizardPage;
   PortalUrlPage: TInputQueryWizardPage;
   JwtPage: TInputQueryWizardPage;
   // Segreto ottenuto dal Portal nella pagina JwtPage (vuoto se la pagina e' stata saltata)
@@ -182,6 +183,83 @@ begin
     Result := GetEnvValue(ExistingEnvPath, 'PRAMAIA_JWT_SECRET');
 end;
 
+// Percorso del database SQLite di un'installazione esistente, da DATABASE_URL del suo .env ('' se non e' SQLite).
+// Il servizio gira con la cartella di installazione come directory di lavoro: i percorsi relativi partono da li'.
+function DatabasePath(AppDir: String): String;
+var
+  Url: String;
+  P: Integer;
+begin
+  Result := '';
+  Url := GetEnvValue(AppDir + '.env', 'DATABASE_URL');
+  if Url = '' then
+    Url := 'sqlite:///./{#MyAppName}.db';
+  P := Pos(':///', Url);
+  if (Pos('sqlite', LowerCase(Url)) <> 1) or (P = 0) then
+    Exit;
+  Url := Copy(Url, P + 4, MaxInt);
+  StringChangeEx(Url, '/', '\', True);
+  if Copy(Url, 1, 2) = '.\' then
+    Result := AppDir + Copy(Url, 3, MaxInt)
+  else if Pos(':', Url) > 0 then
+    Result := Url
+  else
+    Result := AppDir + Url;
+end;
+
+// True se nella cartella scelta c'e' gia' un'installazione con dati (database o documenti caricati).
+function HasExistingData(): Boolean;
+var
+  AppDir, Db: String;
+begin
+  AppDir := AddBackslash(WizardDirValue());
+  Db := DatabasePath(AppDir);
+  Result := ((Db <> '') and FileExists(Db)) or DirExists(AppDir + 'data\documents');
+end;
+
+// True se l'utente ha scelto di ripartire da un database vuoto.
+function WantsFreshData(): Boolean;
+begin
+  Result := (DataPage <> nil) and HasExistingData() and (DataPage.SelectedValueIndex = 1);
+end;
+
+function MoveAside(Source, Dest: String): Boolean;
+begin
+  Result := True;
+  if FileExists(Source) or DirExists(Source) then
+    Result := RenameFile(Source, Dest);
+end;
+
+// Nuova installazione: database e documenti non si cancellano, si spostano in backups\ (recuperabili).
+// Restano .env (collegamento al Portal), i backup gia' fatti e i log. Restituisce un messaggio d'errore o ''.
+function MoveExistingData(): String;
+var
+  AppDir, Db, Target, Name: String;
+begin
+  Result := '';
+  AppDir := AddBackslash(WizardDirValue());
+  Target := AppDir + 'backups\prima-della-nuova-installazione-' + GetDateTimeString('yyyymmdd-hhnnss', #0, #0) + '\';
+  if not ForceDirectories(Target) then
+  begin
+    Result := 'Impossibile creare la cartella ' + Target;
+    Exit;
+  end;
+  Db := DatabasePath(AppDir);
+  if Db <> '' then
+  begin
+    Name := ExtractFileName(Db);
+    if not (MoveAside(Db, Target + Name) and MoveAside(Db + '-wal', Target + Name + '-wal') and
+            MoveAside(Db + '-shm', Target + Name + '-shm') and MoveAside(Db + '-journal', Target + Name + '-journal')) then
+    begin
+      Result := 'Impossibile spostare il database ' + Db + ' in ' + Target +
+                '. Nessun file e'' stato installato: chiudere i programmi che lo usano e riprovare.';
+      Exit;
+    end;
+  end;
+  if not MoveAside(AppDir + 'data\documents', Target + 'documents') then
+    Result := 'Impossibile spostare i documenti (' + AppDir + 'data\documents) in ' + Target + '.';
+end;
+
 procedure InitializeWizard();
 var
   PrevEnvPath, PrevPortalUrl: String;
@@ -194,8 +272,22 @@ begin
   PrevEnvPath := AddBackslash(WizardDirValue()) + '.env';
   PrevPortalUrl := GetEnvValue(PrevEnvPath, 'PORTAL_URL');
 
-  PortalUrlPage := CreateInputQueryPage(
+  // Mostrata solo se nella cartella c'e' gia' un'installazione con dati (vedi ShouldSkipPage)
+  DataPage := CreateInputOptionPage(
     wpSelectDir,
+    'Installazione esistente',
+    'In questa cartella {#MyAppName} e'' gia'' installato e ha dei dati.',
+    'Scegli cosa fare dei dati esistenti (registro dei trattamenti, documenti, ruoli, autorizzazioni).' + #13#10 + #13#10 +
+    'Con una nuova installazione il database e i documenti attuali non vengono cancellati: vengono spostati ' +
+    'nella cartella backups\prima-della-nuova-installazione-<data> e si possono recuperare. ' +
+    'La configurazione (collegamento al Portal) e i backup gia'' fatti restano.',
+    True, False);
+  DataPage.Add('Aggiorna e conserva i dati (consigliato)');
+  DataPage.Add('Nuova installazione: riparti da un database vuoto');
+  DataPage.SelectedValueIndex := 0;
+
+  PortalUrlPage := CreateInputQueryPage(
+    DataPage.ID,
     'Configurazione Portal',
     'Specifica l''URL completo dove il PramaIA Portal e'' raggiungibile.',
     '{#MyAppName} si autentica esclusivamente tramite il Portal (SSO).' + #13#10 + #13#10 +
@@ -228,6 +320,8 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
+  if PageID = DataPage.ID then
+    Result := not HasExistingData();
   // Qui la cartella scelta e' gia' nota: il segreto puo' venire dal .env di un'installazione precedente
   if PageID = JwtPage.ID then
     Result := (GetEnv('PRAMAIA_JWT_SECRET') <> '') or
@@ -239,6 +333,15 @@ var
   ErrorMessage: String;
 begin
   Result := True;
+
+  if (CurPageID = DataPage.ID) and (DataPage.SelectedValueIndex = 1) then
+  begin
+    Result := MsgBox('Ripartire da un database vuoto?' + #13#10 + #13#10 +
+                     'Il registro, i documenti e tutti gli altri dati attuali spariranno da {#MyAppName}. ' +
+                     'Restano recuperabili nella cartella backups\prima-della-nuova-installazione-<data>.',
+                     mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+    Exit;
+  end;
 
   if CurPageID = PortalUrlPage.ID then
   begin
@@ -399,6 +502,27 @@ begin
 
   { 3) Brief wait for Windows to release handles }
   Sleep(1000);
+
+  { 4) Nuova installazione: dati esistenti spostati in backups\ (a servizio fermo, prima della copia) }
+  if WantsFreshData() then
+    Result := MoveExistingData();
+end;
+
+// Riepilogo prima dell'installazione: cosa succede ai dati.
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo,
+  MemoGroupInfo, MemoTasksInfo: String): String;
+begin
+  Result := MemoDirInfo + NewLine + NewLine;
+  if HasExistingData() then
+  begin
+    if WantsFreshData() then
+      Result := Result + 'Dati esistenti:' + NewLine + Space +
+                'spostati in backups\prima-della-nuova-installazione-<data>; si riparte da un database vuoto' + NewLine + NewLine
+    else
+      Result := Result + 'Dati esistenti:' + NewLine + Space + 'conservati (aggiornamento)' + NewLine + NewLine;
+  end;
+  if MemoTasksInfo <> '' then
+    Result := Result + MemoTasksInfo + NewLine;
 end;
 
 

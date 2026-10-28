@@ -40,6 +40,15 @@ taskkill /F /IM PramaIA-PrivacyManager.exe 2>$null
 # poi riesegui il Setup come admin
 ```
 
+**Installazione esistente: conservare i dati o ripartire da zero.** Se nella cartella scelta c'è già un'installazione con dati (il database indicato da `DATABASE_URL` nel `.env`, oppure documenti in `data\documents`), il Setup mostra la pagina *Installazione esistente* con due scelte:
+
+| Scelta | Cosa succede |
+|--------|--------------|
+| **Aggiorna e conserva i dati** (predefinita) | Si sostituiscono solo i programmi; database, documenti, `.env`, log e backup restano come sono. |
+| **Nuova installazione** | Si riparte da un database vuoto. Database (con i file `-wal`/`-shm`) e documenti **non vengono cancellati**: a servizio fermo vengono spostati in `backups\prima-della-nuova-installazione-<aaaammgg-hhmmss>\`. Restano `.env` (collegamento al Portal), i backup già fatti e i log. |
+
+Per recuperare i dati dopo una nuova installazione: fermare il servizio, rimettere il file del database e la cartella `documents` (in `data\`) al loro posto, riavviare.
+
 **Aggiornamento da una versione precedente**: al primo avvio dopo l'aggiornamento, il backend aggiunge da solo le tabelle e le colonne nuove del database (ponte `create_all`/`add_missing_columns`, vedi `backend/db/init_db.py`) — nessuna azione manuale sul database, a meno che tu non stia usando `MIGRATIONS=alembic` (vedi punto 8).
 
 ---

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Box,
+  Button,
   Typography,
   Container,
   Tabs,
@@ -15,12 +16,11 @@ import LockIcon from '@mui/icons-material/Lock';
 import BackupIcon from '@mui/icons-material/Backup';
 import { PramaLayout } from '../components/PramaLayout';
 import { UsersPanel } from '../components/UsersPanel';
-import { PermissionsPanel } from '../components/PermissionsPanel';
 import LicensePanel from '../components/LicensePanel';
 import { BackupSection } from '../components/BackupSection';
 import { DemoDataPanel } from '../components/DemoDataPanel';
 import { canAccessSettings } from '../services/authGuard';
-import { Navigate } from 'react-router-dom';
+import { Link as RouterLink, Navigate } from 'react-router-dom';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -111,7 +111,27 @@ export const SettingsPage: React.FC = () => {
 
           {/* Tab: Permessi */}
           <TabPanel value={activeTab} index={1}>
-            <PermissionsPanel />
+            <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6">Ruoli e permessi in PrivacyManager</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Chi può fare cosa dipende da due impostazioni, entrambe per ente.
+              </Typography>
+              <Box>
+                <Typography variant="subtitle2">Ruoli privacy delle persone</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  A chi è assegnato quale ruolo (privacy manager, DPO, referente, operatore, integrazione HelpDesk…) e su
+                  quale ambito: tutto l'ente, una struttura o una struttura con le sottostrutture.
+                </Typography>
+                <Button variant="outlined" component={RouterLink} to="/organizzazione?tab=roles">Apri Ruoli privacy</Button>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2">Permessi di ogni ruolo</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Cosa può vedere, creare, modificare e approvare ciascun ruolo in ogni modulo, e la separazione dei compiti.
+                </Typography>
+                <Button variant="outlined" component={RouterLink} to="/policy">Apri Policy</Button>
+              </Box>
+            </Paper>
           </TabPanel>
 
           <TabPanel value={activeTab} index={2}>

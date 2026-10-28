@@ -8,6 +8,7 @@ import { PramaLayout } from '../components/PramaLayout';
 import { OrganizationEntityPanel } from '../components/OrganizationEntityPanel';
 import { OrganizationUnitsPanel } from '../components/OrganizationUnitsPanel';
 import { PrivacyRolesPanel } from '../components/PrivacyRolesPanel';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../i18n/useTranslation';
 
 interface TabPanelProps {
@@ -26,7 +27,9 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 
 export const OrganizationPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
-  const [activeTab, setActiveTab] = useState(0);
+  // ?tab=roles apre direttamente i ruoli privacy (collegamento da Impostazioni → Permessi)
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'roles' ? 2 : 0);
 
   return (
     <PramaLayout pageTitle={t('organization.title') || 'Organizzazione'}>
