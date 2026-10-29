@@ -292,7 +292,7 @@ async def test_only_relevant_changes_after_approval_require_a_review(env, w, app
 @pytest.mark.asyncio
 async def test_relations_retention_and_controller_changes_are_detected(env, w, approved_notice):
     c, pid = env["client"], env["ids"]["proc_a"]
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Destinatario", "party_type": "RECIPIENT"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Destinatario", "party_type": "RECIPIENT", "tax_id": "01234567897"}, headers=w["mgr"])).json()
     url = f"{API}/processing-activities/{pid}"
     r = await c.put(f"{url}/relations", json={"recipients": [{"party_id": party["id"]}]}, headers=ifm(await version_of(c, url), w["mgr"]))
     assert r.status_code == 200

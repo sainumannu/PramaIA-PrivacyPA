@@ -235,13 +235,15 @@
     "data_owner_user_id": "Persona nel Portal (facoltativo)"
   },
   "parties": {
-    "title": "Fornitori e responsabili",
-    "subtitle": "Anagrafica unica dei soggetti. L'atto art. 28 è una checklist documentale, non un punteggio di conformità.",
+    "title": "Soggetti esterni",
+    "subtitle": "Anagrafica unica di enti, società e persone fisiche esterne, identificati dal codice fiscale. Responsabili e contitolari hanno un incarico a termine: alla scadenza, o se cessano prima, passano in archivio. L'atto art. 28 è una checklist documentale, non un punteggio di conformità.",
     "tabs": {
       "registry": "Anagrafica",
-      "agreements": "Atti art. 28"
+      "agreements": "Atti art. 28",
+      "appointments": "Incarichi",
+      "archive": "Archivio"
     },
-    "add": "Nuovo soggetto",
+    "add": "Nuovo ente o società",
     "add_agreement": "Nuovo atto art. 28",
     "code": "Codice",
     "name": "Denominazione",
@@ -262,7 +264,9 @@
       "DRAFT": "Bozza",
       "SIGNED": "Sottoscritto",
       "TO_REVIEW": "Da verificare",
-      "EXPIRED": "Scaduto"
+      "EXPIRED": "Scaduto",
+      "valid": "atto valido",
+      "missing": "senza atto valido"
     },
     "clauses": {
       "instructions_present": "Istruzioni del titolare",
@@ -274,6 +278,77 @@
       "dpia_assistance_clause": "Assistenza DPIA",
       "deletion_return_clause": "Cancellazione/restituzione",
       "audit_clause": "Audit"
+    },
+    "tax_code": "Codice fiscale",
+    "vat_id": "Partita IVA / identificativo estero",
+    "country": "Paese (ISO)",
+    "identifiers": "CF / P.IVA",
+    "add_person": "Nuova persona fisica",
+    "new_hint": "Il soggetto entra nell'anagrafica dei soggetti esterni e si potrà riusare ovunque. Deve essere identificabile senza ambiguità: serve il codice fiscale.",
+    "person_name": "Nome e cognome",
+    "empty": "Nessun soggetto in anagrafica.",
+    "incomplete_banner": "{{count}} soggetti da completare: manca il codice fiscale valido o la durata dell'incarico. Aprili per completarli.",
+    "appointments_hint": "Registro degli incarichi di responsabili (art. 28) e contitolari (art. 26) in corso. L'incarico finisce con il contratto collegato o alla data indicata; con «Cessa» si registra una cessazione anticipata.",
+    "appointments_empty": "Nessun incarico in corso.",
+    "archive_hint": "Responsabili e contitolari con l'incarico scaduto o cessato. Restano consultabili e collegati ai trattamenti storici, ma non si possono più scegliere.",
+    "archive_empty": "Archivio vuoto.",
+    "cease": "Cessa",
+    "reinstate": "Annulla cessazione",
+    "renew": "Rinnova",
+    "kind": {
+      "entity": "Ente o società",
+      "person": "Persona fisica"
+    },
+    "identity": {
+      "cf_required": "Indicare il codice fiscale: serve a identificare il soggetto senza ambiguità.",
+      "foreign_required": "Indicare l'identificativo fiscale del soggetto estero (codice fiscale o partita IVA del suo paese).",
+      "cf_person_invalid": "Codice fiscale non valido: per una persona fisica servono 16 caratteri con il carattere di controllo corretto.",
+      "cf_entity_invalid": "Codice fiscale non valido: per un ente o una società servono 11 cifre (16 caratteri per una ditta individuale).",
+      "vat_invalid": "Partita IVA non valida: servono 11 cifre con la cifra di controllo corretta.",
+      "cf_person_hint": "16 caratteri. Per un soggetto estero, il suo identificativo fiscale.",
+      "cf_entity_hint": "11 cifre (16 caratteri per una ditta individuale).",
+      "incomplete": "da completare"
+    },
+    "term": {
+      "title": "Durata dell'incarico",
+      "hint": "Un responsabile o un contitolare lo è per un periodo, di solito quanto il contratto. Alla fine passa in archivio e i trattamenti che lo usano ancora vengono segnalati.",
+      "start": "Inizio incarico",
+      "mode": {
+        "NEW_CONTRACT": "Fino alla fine del contratto (registralo ora)",
+        "CONTRACT": "Fino alla fine di un contratto già registrato",
+        "DURATION": "Per un numero di mesi",
+        "DATE": "Fino a una data"
+      },
+      "contract_title": "Oggetto del contratto",
+      "contract_end": "Fine del contratto",
+      "contract": "Contratto",
+      "no_end": "senza data di fine",
+      "months": "Durata in mesi",
+      "end": "Fine incarico",
+      "result": "L'incarico termina il {{date}}.",
+      "contract_required": "Indicare oggetto e data di fine del contratto.",
+      "choose_contract": "Scegliere il contratto.",
+      "required": "Indicare la durata dell'incarico.",
+      "order": "La fine dell'incarico precede l'inizio."
+    },
+    "appointment": {
+      "title": "Incarico",
+      "until": "fino al {{date}}",
+      "ceased_on": "cessato il {{date}}",
+      "state": {
+        "UNDEFINED": "durata non indicata"
+      },
+      "basis": "Durata legata a",
+      "by_date": "data indicata",
+      "ended": "Fine",
+      "ceased_early": "cessato in anticipo il {{date}}",
+      "expired": "scaduto il {{date}}"
+    },
+    "cessation": {
+      "title": "Cessazione dell'incarico di {{name}}",
+      "hint": "Il soggetto passa in archivio dalla data indicata. I trattamenti che lo usano ancora vengono segnalati finché non lo si sostituisce.",
+      "date": "Cessato il",
+      "note": "Motivo / estremi"
     }
   },
   "import": {
@@ -459,7 +534,7 @@
       "processing": "Registro dei trattamenti",
       "dpia": "DPIA",
       "asset": "Sistemi",
-      "party": "Fornitori",
+      "party": "Soggetti esterni",
       "transfer": "Trasferimenti",
       "risk": "Rischi",
       "task": "Task",
@@ -666,7 +741,11 @@
       "CONTRACT_EXPIRING": "Il contratto {{contract}} con {{party}} scade o si rinnova il {{date}}",
       "SUBPROCESSOR_EXPIRED": "L'autorizzazione di {{subprocessor}} come sub-responsabile di {{processor}} è scaduta",
       "SUBPROCESSOR_NO_CLAUSE": "L'atto art. 28 con {{processor}} non prevede la clausola sui sub-responsabili",
-      "RETENTION_MISSING": "Il trattamento {{processing}} non ha regole di conservazione"
+      "RETENTION_MISSING": "Il trattamento {{processing}} non ha regole di conservazione",
+      "PROCESSOR_CEASED_IN_USE": "Il trattamento {{processing}} usa {{party}}, il cui incarico è cessato il {{date}}",
+      "APPOINTMENT_EXPIRING": "L'incarico di {{party}} scade il {{date}}",
+      "PARTY_DATA_INCOMPLETE": "{{party}} non ha un codice fiscale valido (o, all'estero, un identificativo fiscale)",
+      "PARTY_APPOINTMENT_MISSING": "L'incarico di {{party}} non ha una durata"
     }
   },
   "notices": {
@@ -1190,7 +1269,7 @@
         "processing_activity": "Trattamento",
         "dpia": "DPIA",
         "asset": "Sistema",
-        "party": "Fornitore",
+        "party": "Soggetto esterno",
         "contract": "Contratto",
         "privacy_notice": "Informativa",
         "data_breach": "Violazione",
@@ -1449,7 +1528,7 @@
     "run": "Cerca",
     "processing": "Trattamenti",
     "assets": "Sistemi",
-    "parties": "Fornitori",
+    "parties": "Soggetti esterni",
     "documents": "Documenti",
     "tasks": "Task",
     "dpias": "DPIA",
@@ -1485,10 +1564,13 @@
       "max_duration": "Vuoto = nessun limite (ammessi anche accessi permanenti)"
     },
     "person": {
-      "hint": "Scegliere dall'organigramma del Portal, oppure scrivere nome o identificativo di chi non c'è (es. un esterno).",
-      "not_in_portal": "Persona non presente nel Portal: verrà registrata con il testo scritto.",
-      "unavailable": "Organigramma del Portal non disponibile: scrivere l'identificativo a mano.",
-      "no_unit": "Fuori dall'organigramma"
+      "hint": "Dall'organigramma del Portal o tra le persone esterne dell'anagrafica. Chi manca si registra con il codice fiscale.",
+      "unavailable": "Organigramma del Portal non disponibile: si possono scegliere solo le persone esterne dell'anagrafica.",
+      "no_unit": "Fuori dall'organigramma",
+      "legacy": "«{{name}}» è stato scritto a mano e non identifica nessuno: scegliere la persona dal Portal o dall'anagrafica.",
+      "external_group": "Persone esterne (anagrafica)",
+      "add_external": "Persona esterna",
+      "no_match": "Nessuno corrisponde: se è un esterno, registralo con «Persona esterna»."
     }
   },
   "opinions": {
@@ -1893,5 +1975,19 @@
     "portal": "Organigramma del Portal (verrà aggiunta a PrivacyPA)",
     "portal_unavailable": "Organigramma del Portal non raggiungibile: si sceglie tra le strutture di PrivacyPA.",
     "add_failed": "Impossibile aggiungere la struttura dal Portal"
+  },
+  "party_picker": {
+    "search": "Cerca per nome, codice…",
+    "no_match": "Nessun soggetto corrispondente nell'anagrafica",
+    "no_identifier": "senza codice fiscale né P.IVA",
+    "hint_processor": "Chi tratta i dati per conto dell'ente (art. 28): fornitore del gestionale, hosting, paghe, conservazione… Solo responsabili con l'incarico in corso, dall'anagrafica dei soggetti esterni.",
+    "hint_recipient": "A chi l'ente comunica i dati e che li usa per conto proprio: INPS, Agenzia delle Entrate, tesoreria, altri enti… Dall'anagrafica dei soggetti esterni.",
+    "empty_processor": "Nessun responsabile con l'incarico in corso: aggiungilo con «Nuovo responsabile». Non si può scrivere un nome libero.",
+    "empty_recipient": "L'anagrafica dei soggetti esterni è vuota: aggiungi il destinatario con «Nuovo destinatario». Non si può scrivere un nome libero.",
+    "add_processor": "Nuovo responsabile",
+    "add_recipient": "Nuovo destinatario",
+    "no_agreement": "Senza un atto art. 28 firmato e in vigore: {{names}}.",
+    "open_parties": "Registra l'atto in Soggetti esterni",
+    "ceased": "Incarico cessato, da sostituire: {{names}}."
   }
 }

@@ -61,6 +61,7 @@ const ROUTES: Record<string, string> = {
   contract: '/filiera',
   subprocessor: '/filiera',
   processor_agreement: '/fornitori',
+  party: '/fornitori',
   asset: '/sistemi',
   privacy_notice: '/informative',
   task: '/task',
@@ -208,7 +209,8 @@ export const FindingsPage: React.FC = () => {
                     <TableRow key={f.id} hover>
                       <TableCell><Chip size="small" color={COLORS[f.severity]} label={t(`findings.sev.${f.severity}`)} /></TableCell>
                       <TableCell>
-                        {t(`findings.codes.${f.code === 'NOTICE_REVIEW_REQUIRED' && !f.params.processing ? 'NOTICE_REVIEW_CONTROLLER' : f.code}`, f.params) || f.message}
+                        {t(`findings.codes.${f.code === 'NOTICE_REVIEW_REQUIRED' && !f.params.processing ? 'NOTICE_REVIEW_CONTROLLER'
+                          : f.code === 'PARTY_DATA_INCOMPLETE' && f.params.missing === 'appointment' ? 'PARTY_APPOINTMENT_MISSING' : f.code}`, f.params) || f.message}
                         {f.resolution_notes && <Typography variant="caption" display="block" color="text.secondary">{f.resolution_notes}</Typography>}
                       </TableCell>
                       <TableCell>{f.due_date || '—'}</TableCell>

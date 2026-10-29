@@ -135,7 +135,7 @@ async def test_breach_status_links_and_deletion_rules(env, w):
     assert (await c.post(f"{url}/status", json={"status": "CLOSED"}, headers=ifm(2, w["ict"]))).status_code == 403      # chiudere: governo
 
     # collegamenti (§26.3), con controllo di scope sui trattamenti
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     links = {"links": [{"entity_type": "processing_activity", "entity_id": ids["proc_a"]}, {"entity_type": "party", "entity_id": party["id"]}]}
     assert (await c.put(f"{url}/links", json={"links": [{"entity_type": "spaceship", "entity_id": "x"}]}, headers=ifm(2, w["ict"]))).status_code == 400
     assert (await c.put(f"{url}/links", json={"links": [{"entity_type": "party", "entity_id": "nope"}]}, headers=ifm(2, w["ict"]))).status_code == 400

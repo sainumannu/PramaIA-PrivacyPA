@@ -36,20 +36,20 @@ async def test_asset_sent_back_as_read_keeps_the_fields_outside_the_form(env, mg
 async def test_processor_profile_sent_back_as_read_is_not_reset(env, mgr):
     c = env["client"]
     created = await c.post("/api/privacypa/parties", json={
-        "legal_name": "Cloud Srl", "party_type": "PROCESSOR", "vat_id": "IT01234567890", "website": "https://cloud.example",
-        "processor_profile": {"status": "ACTIVE", "dpo_contact": "dpo@cloud.example", "next_assessment_date": "2027-03-01"},
+        "legal_name": "Cloud Srl", "party_type": "PROCESSOR", "tax_id": "01234567897", "vat_id": "IT01234567897", "website": "https://cloud.example",
+        "processor_profile": {"status": "ACTIVE", "appointment_end": "2099-12-31", "dpo_contact": "dpo@cloud.example", "next_assessment_date": "2027-03-01"},
     }, headers=mgr)
     assert created.status_code == 201, created.text
     party = created.json()
 
     # Come PartiesPage: il profilo letto senza party_id, P.IVA e sito rimandati com'erano
     profile = {k: v for k, v in party["processor_profile"].items() if k != "party_id"}
-    body = {"legal_name": "Cloud S.r.l.", "party_type": "PROCESSOR", "vat_id": party["vat_id"],
+    body = {"legal_name": "Cloud S.r.l.", "party_type": "PROCESSOR", "tax_id": party["tax_id"], "vat_id": party["vat_id"],
             "website": party["website"], "processor_profile": profile}
     r = await c.patch(f"/api/privacypa/parties/{party['id']}", json=body, headers=ifm(party["row_version"], mgr))
     assert r.status_code == 200, r.text
     saved = r.json()
-    assert (saved["vat_id"], saved["website"]) == ("IT01234567890", "https://cloud.example")
+    assert (saved["vat_id"], saved["website"]) == ("01234567897", "https://cloud.example")
     assert saved["processor_profile"]["status"] == "ACTIVE"
     assert saved["processor_profile"]["dpo_contact"] == "dpo@cloud.example"
     assert saved["processor_profile"]["next_assessment_date"] == "2027-03-01"

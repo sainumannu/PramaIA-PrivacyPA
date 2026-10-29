@@ -120,7 +120,7 @@ async def test_role_matrix_on_representative_writes_and_reads(env):
         ("dpia.create", "POST", f"{API}/dpias", {"title": "Prova"}),
         ("task.create", "POST", f"{API}/tasks", {"title": "Prova"}),
         ("asset.create", "POST", f"{API}/assets", {"name": "Prova"}),
-        ("party.create", "POST", f"{API}/parties", {"legal_name": "Prova", "party_type": "SUPPLIER"}),
+        ("party.create", "POST", f"{API}/parties", {"legal_name": "Prova", "party_type": "SUPPLIER", "tax_id": "01234567897"}),
         ("tag.create", "POST", f"{API}/tags", {"name": "prova"}),
         ("project.create", "POST", f"{API}/projects", {"title": "P", "proposing_unit_id": "unit-a", "project_owner_id": "u"}),
         ("breach.create", "POST", f"{API}/breaches", {"title": "V", "organizational_unit_id": "unit-a", "aware_at": (datetime.utcnow() - timedelta(hours=1)).isoformat(), "description": "d"}),
@@ -157,7 +157,7 @@ async def tenant_a(env):
     rows = {
         "processing-activities": {"id": proc},
         "assets": await _create(c, f"{API}/assets", {"name": "Sistema riservato di A"}, mgr),
-        "parties": await _create(c, f"{API}/parties", {"legal_name": "Fornitore riservato di A", "party_type": "PROCESSOR"}, mgr),
+        "parties": await _create(c, f"{API}/parties", {"legal_name": "Fornitore riservato di A", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, mgr),
         "notices": await _create(c, f"{API}/notices", {"title": "Informativa riservata di A", "owner_unit_id": "unit-a"}, mgr),
         "tasks": await _create(c, f"{API}/tasks", {"title": "Task riservato di A"}, mgr),
         "documents": await _create(c, f"{API}/documents", {"title": "Documento riservato di A"}, mgr),
@@ -230,7 +230,7 @@ async def test_records_of_another_tenant_cannot_be_referenced_from_ours(env, ten
     b_measure = (await make("/security-measures", {"name": "Misura B"}))["id"]
     b_notice = await make("/notices", {"title": "Informativa B", "owner_unit_id": "unit-x"})
     b_breach = await make("/breaches", {"title": "Violazione B", "organizational_unit_id": "unit-x", "aware_at": aware, "description": "d"})
-    b_party = (await make("/parties", {"legal_name": "Fornitore B", "party_type": "PROCESSOR"}))["id"]
+    b_party = (await make("/parties", {"legal_name": "Fornitore B", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}))["id"]
     b_asset = await make("/assets", {"name": "Sistema B"})
     b_task = await make("/tasks", {"title": "Task B"})
     b_transfer = await make("/transfers", {"title": "Trasferimento B", "country_code": "US"})

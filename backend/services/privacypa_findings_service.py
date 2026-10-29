@@ -56,6 +56,7 @@ from backend.models.privacypa_risk import RiskAssessment
 from backend.models.privacypa_rules import Severity
 from backend.models.privacypa_tasks import PrivacyTask, TaskPriority, TaskSourceType, TaskStatus
 from backend.services.privacypa_annotation_service import load_refs
+from backend.services.privacypa_party_service import APPOINTED_TYPES, appointment_of, is_identified
 from backend.services.privacypa_document_service import DocumentService
 from backend.services.privacypa_dpia_service import DpiaService
 from backend.services.privacypa_external_event_service import EVENT_SEVERITY
@@ -113,8 +114,21 @@ class Context:
         return self._cache[key]
 
     async def parties(self) -> dict[str, Party]:
-        rows = await self._rows("parties", select(Party).where(Party.tenant_id == self.tenant_id, Party.deleted_at.is_(None)))
+        rows = await self._rows("parties", select(Party).where(Party.tenant_id == self.tenant_id, Party.deleted_at.is_(None))
+                                .options(selectinload(Party.processor_profile)))
         return {p.id: p for p in rows}
+
+    async def appointments(self) -> dict[str, tuple[Party, dict]]:
+        """Responsabili e contitolari con durata e stato dell'incarico (fine del contratto collegato, anche se scaduto)."""
+        if "appointments" not in self._cache:
+            contracts = {c.id: c for c in await self._rows("all_contracts", select(Contract).where(Contract.tenant_id == self.tenant_id))}
+            out = {}
+            for p in (await self.parties()).values():
+                if p.party_type in APPOINTED_TYPES and p.processor_profile is not None:
+                    info = appointment_of(p.processor_profile, contracts.get(p.processor_profile.appointment_contract_id), self.today)
+                    out[p.id] = (p, info)
+            self._cache["appointments"] = out
+        return self._cache["appointments"]
 
     async def party_name(self, party_id: str) -> str:
         return getattr(( await self.parties()).get(party_id), "legal_name", None) or party_id
@@ -220,6 +234,57 @@ async def _agreement_expiring(ctx: Context, params: dict) -> list[Hit]:
             hits.append(Hit(
                 "processor_agreement", a.id, f"L'atto art. 28 con {party} scade il {a.expiry_date.isoformat()}",
                 due_date=a.expiry_date, params={"party": party, "date": a.expiry_date.isoformat()},
+            ))
+    return hits
+
+
+async def _processor_ceased_in_use(ctx: Context, params: dict) -> list[Hit]:
+    live, appointments, hits = await ctx.live(), await ctx.appointments(), []
+    for link in await ctx.processor_links():
+        party, info = appointments.get(link.party_id, (None, None))
+        if info is None or info["state"] != "CEASED":
+            continue
+        activity, when = live[link.processing_activity_id], info["ceased_on"] or info["until"]
+        hits.append(Hit(
+            "processing_activity", activity.id,
+            f"Il trattamento {activity.code} usa {party.legal_name}, il cui incarico è cessato il {when}",
+            entity_code=activity.code, processing_id=activity.id, subject=link.party_id,
+            params={"processing": activity.code, "party": party.legal_name, "date": when},
+        ))
+    return hits
+
+
+async def _appointment_expiring(ctx: Context, params: dict) -> list[Hit]:
+    horizon = ctx.today + timedelta(days=int(params.get("horizon_days", 60)))
+    hits = []
+    for party, info in (await ctx.appointments()).values():
+        # Gli incarichi legati a un contratto li segnala già CONTRACT_EXPIRING
+        if info["source"] != "DATE" or info["state"] == "CEASED":
+            continue
+        until = date.fromisoformat(info["until"])
+        if until <= horizon:
+            hits.append(Hit(
+                "party", party.id, f"L'incarico di {party.legal_name} scade il {info['until']}",
+                entity_code=party.code, due_date=until, params={"party": party.legal_name, "date": info["until"]},
+            ))
+    return hits
+
+
+async def _party_data_incomplete(ctx: Context, params: dict) -> list[Hit]:
+    appointments, hits = await ctx.appointments(), []
+    for party in (await ctx.parties()).values():
+        _, info = appointments.get(party.id, (None, None))
+        if info and info["state"] == "CEASED":
+            continue  # in archivio
+        if not is_identified(party):
+            hits.append(Hit(
+                "party", party.id, f"{party.legal_name} non ha un codice fiscale valido (o, all'estero, un identificativo fiscale)",
+                entity_code=party.code, subject="identifier", params={"party": party.legal_name, "missing": "identifier"},
+            ))
+        if info and info["state"] == "UNDEFINED":
+            hits.append(Hit(
+                "party", party.id, f"L'incarico di {party.legal_name} non ha una durata",
+                entity_code=party.code, subject="appointment", params={"party": party.legal_name, "missing": "appointment"},
             ))
     return hits
 
@@ -808,6 +873,18 @@ RULES: tuple[RuleSpec, ...] = (
              "Atto art. 28 firmato con data di scadenza precedente a oggi.", _H, _agreement_expired),
     RuleSpec("AGREEMENT_EXPIRING", "Atto art. 28 in scadenza", "Un atto art. 28 firmato scade a breve (AC-PROC-003).",
              "Atto art. 28 firmato che scade entro {horizon_days} giorni.", _M, _agreement_expiring, {"horizon_days": 60}),
+    RuleSpec("PROCESSOR_CEASED_IN_USE", "Responsabile cessato ancora in uso",
+             "Un trattamento approvato o attivo usa un responsabile il cui incarico è scaduto o cessato.",
+             "Trattamento approvato/attivo collegato a un responsabile con l'incarico terminato (fine del contratto "
+             "collegato o data di fine passate, oppure cessazione anticipata).", _H, _processor_ceased_in_use),
+    RuleSpec("APPOINTMENT_EXPIRING", "Incarico in scadenza",
+             "L'incarico di un responsabile o contitolare scade a breve (per gli incarichi legati a un contratto vale CONTRACT_EXPIRING).",
+             "Responsabile o contitolare con incarico fino a una data che cade entro {horizon_days} giorni.", _M,
+             _appointment_expiring, {"horizon_days": 60}),
+    RuleSpec("PARTY_DATA_INCOMPLETE", "Soggetto esterno da completare",
+             "Un soggetto esterno non è identificabile senza ambiguità oppure il suo incarico non ha una durata.",
+             "Soggetto non in archivio senza codice fiscale valido (all'estero, senza identificativo fiscale), oppure "
+             "responsabile o contitolare senza durata dell'incarico.", _L, _party_data_incomplete),
     RuleSpec("CONTRACT_EXPIRED", "Contratto scaduto", "Un contratto attivo ha superato la data di fine.",
              "Contratto attivo con data di fine precedente a oggi.", _H, _contract_expired),
     RuleSpec("CONTRACT_EXPIRING", "Contratto in scadenza o da rinnovare", "Un contratto attivo scade o va rinnovato a breve.",

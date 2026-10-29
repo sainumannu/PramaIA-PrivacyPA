@@ -235,13 +235,15 @@
     "data_owner_user_id": "Person in the Portal (optional)"
   },
   "parties": {
-    "title": "Suppliers and processors",
-    "subtitle": "Single party registry. The Art. 28 act is a documentary checklist, not a compliance score.",
+    "title": "External parties",
+    "subtitle": "Single registry of external bodies, companies and individuals, identified by tax code. Processors and joint controllers have a fixed-term appointment: when it ends, or if it ends early, they move to the archive. The art. 28 agreement is a document checklist, not a compliance score.",
     "tabs": {
       "registry": "Registry",
-      "agreements": "Art. 28 acts"
+      "agreements": "Art. 28 agreements",
+      "appointments": "Appointments",
+      "archive": "Archive"
     },
-    "add": "New party",
+    "add": "New body or company",
     "add_agreement": "New Art. 28 act",
     "code": "Code",
     "name": "Legal name",
@@ -262,7 +264,9 @@
       "DRAFT": "Draft",
       "SIGNED": "Signed",
       "TO_REVIEW": "To review",
-      "EXPIRED": "Expired"
+      "EXPIRED": "Expired",
+      "valid": "valid agreement",
+      "missing": "no valid agreement"
     },
     "clauses": {
       "instructions_present": "Controller instructions",
@@ -274,6 +278,77 @@
       "dpia_assistance_clause": "DPIA assistance",
       "deletion_return_clause": "Deletion/return",
       "audit_clause": "Audit"
+    },
+    "tax_code": "Tax code",
+    "vat_id": "VAT number / foreign identifier",
+    "country": "Country (ISO)",
+    "identifiers": "Tax code / VAT",
+    "add_person": "New individual",
+    "new_hint": "The party is added to the external parties registry and can be reused everywhere. It must be unambiguously identifiable: the tax code is required.",
+    "person_name": "Full name",
+    "empty": "No parties in the registry.",
+    "incomplete_banner": "{{count}} parties to complete: valid tax code or appointment term missing. Open them to complete them.",
+    "appointments_hint": "Register of current appointments of processors (art. 28) and joint controllers (art. 26). The appointment ends with the linked contract or on the given date; use \"End\" to record an early termination.",
+    "appointments_empty": "No current appointments.",
+    "archive_hint": "Processors and joint controllers whose appointment expired or ended. They remain visible and linked to past processing activities, but can no longer be chosen.",
+    "archive_empty": "The archive is empty.",
+    "cease": "End",
+    "reinstate": "Undo termination",
+    "renew": "Renew",
+    "kind": {
+      "entity": "Body or company",
+      "person": "Individual"
+    },
+    "identity": {
+      "cf_required": "Enter the tax code: it identifies the party unambiguously.",
+      "foreign_required": "Enter the tax identifier of the foreign party (tax code or VAT number of its country).",
+      "cf_person_invalid": "Invalid tax code: an individual needs 16 characters with the correct check character.",
+      "cf_entity_invalid": "Invalid tax code: a body or company needs 11 digits (16 characters for a sole proprietorship).",
+      "vat_invalid": "Invalid VAT number: 11 digits with the correct check digit are required.",
+      "cf_person_hint": "16 characters. For a foreign party, its tax identifier.",
+      "cf_entity_hint": "11 digits (16 characters for a sole proprietorship).",
+      "incomplete": "to complete"
+    },
+    "term": {
+      "title": "Appointment term",
+      "hint": "A processor or joint controller is appointed for a period, usually as long as the contract. When it ends the party moves to the archive and processing activities still using it are flagged.",
+      "start": "Appointment start",
+      "mode": {
+        "NEW_CONTRACT": "Until the end of the contract (record it now)",
+        "CONTRACT": "Until the end of a recorded contract",
+        "DURATION": "For a number of months",
+        "DATE": "Until a date"
+      },
+      "contract_title": "Contract subject",
+      "contract_end": "Contract end",
+      "contract": "Contract",
+      "no_end": "no end date",
+      "months": "Duration in months",
+      "end": "Appointment end",
+      "result": "The appointment ends on {{date}}.",
+      "contract_required": "Enter the contract subject and end date.",
+      "choose_contract": "Choose the contract.",
+      "required": "Enter the appointment term.",
+      "order": "The appointment ends before it starts."
+    },
+    "appointment": {
+      "title": "Appointment",
+      "until": "until {{date}}",
+      "ceased_on": "ended on {{date}}",
+      "state": {
+        "UNDEFINED": "no term"
+      },
+      "basis": "Term based on",
+      "by_date": "given date",
+      "ended": "End",
+      "ceased_early": "ended early on {{date}}",
+      "expired": "expired on {{date}}"
+    },
+    "cessation": {
+      "title": "End the appointment of {{name}}",
+      "hint": "The party moves to the archive from the given date. Processing activities still using it are flagged until it is replaced.",
+      "date": "Ended on",
+      "note": "Reason / reference"
     }
   },
   "import": {
@@ -459,7 +534,7 @@
       "processing": "Processing register",
       "dpia": "DPIA",
       "asset": "Systems",
-      "party": "Suppliers",
+      "party": "External parties",
       "transfer": "Transfers",
       "risk": "Risks",
       "task": "Tasks",
@@ -666,7 +741,11 @@
       "CONTRACT_EXPIRING": "Contract {{contract}} with {{party}} expires or renews on {{date}}",
       "SUBPROCESSOR_EXPIRED": "The authorization of {{subprocessor}} as sub-processor of {{processor}} has expired",
       "SUBPROCESSOR_NO_CLAUSE": "The art. 28 agreement with {{processor}} has no sub-processor clause",
-      "RETENTION_MISSING": "Processing {{processing}} has no retention rules"
+      "RETENTION_MISSING": "Processing {{processing}} has no retention rules",
+      "PROCESSOR_CEASED_IN_USE": "Processing {{processing}} uses {{party}}, whose appointment ended on {{date}}",
+      "APPOINTMENT_EXPIRING": "The appointment of {{party}} expires on {{date}}",
+      "PARTY_DATA_INCOMPLETE": "{{party}} has no valid tax code (or, abroad, a tax identifier)",
+      "PARTY_APPOINTMENT_MISSING": "The appointment of {{party}} has no duration"
     }
   },
   "notices": {
@@ -1190,7 +1269,7 @@
         "processing_activity": "Processing activity",
         "dpia": "DPIA",
         "asset": "System",
-        "party": "Supplier",
+        "party": "External party",
         "contract": "Contract",
         "privacy_notice": "Privacy notice",
         "data_breach": "Data breach",
@@ -1449,7 +1528,7 @@
     "run": "Search",
     "processing": "Processing activities",
     "assets": "Systems",
-    "parties": "Suppliers",
+    "parties": "External parties",
     "documents": "Documents",
     "tasks": "Tasks",
     "dpias": "DPIA",
@@ -1485,10 +1564,13 @@
       "max_duration": "Empty = no limit (permanent access allowed too)"
     },
     "person": {
-      "hint": "Choose from the Portal org chart, or type the name or identifier of someone who isn't there (e.g. an external person).",
-      "not_in_portal": "Person not in the Portal: it will be recorded with the text typed.",
-      "unavailable": "Portal org chart unavailable: type the identifier by hand.",
-      "no_unit": "Outside the org chart"
+      "hint": "From the Portal org chart or among the external individuals in the registry. Anyone missing is registered with their tax code.",
+      "unavailable": "Portal org chart unavailable: only external individuals from the registry can be chosen.",
+      "no_unit": "Outside the org chart",
+      "legacy": "\"{{name}}\" was typed by hand and identifies no one: choose the person from the Portal or the registry.",
+      "external_group": "External individuals (registry)",
+      "add_external": "External person",
+      "no_match": "No match: if it is an outsider, register them with \"External person\"."
     }
   },
   "opinions": {
@@ -1893,5 +1975,19 @@
     "portal": "Portal org chart (will be added to PrivacyPA)",
     "portal_unavailable": "Portal org chart unreachable: choose among PrivacyPA units.",
     "add_failed": "Unable to add the unit from the Portal"
+  },
+  "party_picker": {
+    "search": "Search by name, code…",
+    "no_match": "No matching party in the registry",
+    "no_identifier": "no tax code or VAT number",
+    "hint_processor": "Who processes the data on behalf of the organisation (art. 28): software vendor, hosting, payroll, archiving… Only processors with a current appointment, from the external parties registry.",
+    "hint_recipient": "Who receives the data and uses it for their own purposes: tax and social security agencies, treasury, other bodies… From the external parties registry.",
+    "empty_processor": "No processor with a current appointment: add one with \"New processor\". Free-text names are not allowed.",
+    "empty_recipient": "The external parties registry is empty: add the recipient with \"New recipient\". Free-text names are not allowed.",
+    "add_processor": "New processor",
+    "add_recipient": "New recipient",
+    "no_agreement": "No signed art. 28 agreement in force: {{names}}.",
+    "open_parties": "Record the agreement in External parties",
+    "ceased": "Appointment ended, to be replaced: {{names}}."
   }
 }

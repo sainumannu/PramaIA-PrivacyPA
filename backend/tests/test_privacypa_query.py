@@ -288,7 +288,7 @@ async def test_queries_by_tag_and_tags_in_the_results(env, w, data):
 @pytest.mark.asyncio
 async def test_other_entities_have_queryable_fields(env, w):
     c, mgr = env["client"], w["mgr"]
-    supplier = (await c.post(f"{API}/parties", json={"legal_name": "XYZ S.r.l.", "party_type": "PROCESSOR", "country_code": "IT"}, headers=mgr)).json()
+    supplier = (await c.post(f"{API}/parties", json={"legal_name": "XYZ S.r.l.", "party_type": "PROCESSOR", "country_code": "IT", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=mgr)).json()
     asset = (await c.post(f"{API}/assets", json={"name": "VMS", "asset_type": "APPLICATION", "cloud_service": True}, headers=mgr)).json()
     await c.post(f"{API}/assets", json={"name": "Portale", "asset_type": "APPLICATION"}, headers=mgr)
     project = {"title": "Nuovo servizio", "proposing_unit_id": "unit-a", "project_owner_id": "ref-a", "uses_cloud": True}
@@ -309,7 +309,7 @@ async def test_other_entities_have_queryable_fields(env, w):
 async def test_link_flags_see_systems_processors_and_notices(env, w, data):
     c, mgr = env["client"], w["mgr"]
     asset = (await c.post(f"{API}/assets", json={"name": "VMS", "asset_type": "APPLICATION"}, headers=mgr)).json()
-    party = (await c.post(f"{API}/parties", json={"legal_name": "XYZ S.r.l.", "party_type": "PROCESSOR"}, headers=mgr)).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "XYZ S.r.l.", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=mgr)).json()
     notice = await c.post(f"{API}/notices", json={"title": "Informativa videosorveglianza", "owner_unit_id": "unit-a"}, headers=mgr)
     assert notice.status_code == 201, notice.text
     proc_url = f"{API}/processing-activities/{data['video']['id']}"

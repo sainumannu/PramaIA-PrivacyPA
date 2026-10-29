@@ -25,6 +25,7 @@ from backend.auth.privacypa_permissions import (
 from backend.auth.privacypa_scope import build_scope
 from backend.db.database import get_db
 from backend.models.privacypa_assets import Asset
+from backend.models.privacypa_parties import Party
 from backend.models.privacypa_people import AssignmentStatus, Authorization, AuthorizationProfile
 from backend.services import privacypa_directory as directory
 from backend.services.privacypa_compliance_service import ComplianceError, ComplianceNotFound
@@ -425,16 +426,22 @@ async def _with_names(db: AsyncSession, tenant_id: str, rows: list[Authorization
 
 
 @au_router.get("/people")
-async def portal_people(tenant_id: str = Depends(require_tenant)):
-    """Persone del Portal tra cui scegliere l'incaricato: utenti del tenant con le strutture dell'organigramma.
+async def portal_people(tenant_id: str = Depends(require_tenant), db: AsyncSession = Depends(get_db)):
+    """Persone tra cui scegliere: utenti del tenant con le strutture dell'organigramma del Portal e persone fisiche
+    esterne dell'anagrafica dei soggetti (`external`), identificate dal codice fiscale.
 
-    Se il Portal non risponde `available` è falso: l'interfaccia lascia comunque scrivere a mano l'identificativo, come per
-    le persone che non sono nell'organigramma.
+    Non si scrive un nome a mano: chi non è nel Portal si registra nell'anagrafica. Se il Portal non risponde
+    `available` è falso e si possono scegliere le sole persone esterne.
     """
+    external = [{"id": p.id, "name": p.legal_name, "email": p.email or p.pec, "active": True, "units": [],
+                 "external": True, "tax_id": p.tax_id}
+                for p in (await db.execute(select(Party).where(
+                    Party.tenant_id == tenant_id, Party.deleted_at.is_(None), Party.natural_person.is_(True),
+                ).order_by(Party.legal_name))).scalars().all()]
     try:
-        return {"available": True, "people": await directory.people(tenant_id)}
+        return {"available": True, "people": await directory.people(tenant_id) + external}
     except directory.DirectoryUnavailable as e:
-        return {"available": False, "people": [], "detail": str(e)}
+        return {"available": False, "people": external, "detail": str(e)}
 
 
 @au_router.get("")

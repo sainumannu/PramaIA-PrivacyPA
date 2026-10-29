@@ -26,11 +26,31 @@ class ProcessorProfileIn(BaseModel):
     status: ProcessorStatus = ProcessorStatus.TO_REVIEW
     last_assessment_date: date | None = None
     next_assessment_date: date | None = None
+    # Durata dell'incarico: fino alla fine di un contratto del soggetto oppure fino a una data
+    appointment_start: date | None = None
+    appointment_end: date | None = None
+    appointment_contract_id: str | None = None
+
+
+class NewContractIn(BaseModel):
+    """Contratto registrato insieme al soggetto: l'incarico dura quanto il contratto."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+    cig: str | None = None
+    start_date: date | None = None
+    end_date: date
 
 
 class PartyUpsert(BaseModel):
+    """Soggetto esterno. Deve essere identificabile: codice fiscale valido (all'estero un identificativo fiscale).
+
+    Responsabili e contitolari indicano la durata dell'incarico in `processor_profile` (data di fine o contratto
+    esistente) oppure con `new_contract`.
+    """
+
     legal_name: str = Field(..., min_length=1, max_length=255)
     party_type: PartyType = PartyType.SUPPLIER
+    natural_person: bool = False
     tax_id: str | None = None
     vat_id: str | None = None
     pec: str | None = None
@@ -39,6 +59,14 @@ class PartyUpsert(BaseModel):
     website: str | None = None
     notes: str | None = None
     processor_profile: ProcessorProfileIn | None = None
+    new_contract: NewContractIn | None = None
+
+
+class CessationIn(BaseModel):
+    """Cessazione anticipata dell'incarico; `ceased_on` vuoto la annulla."""
+
+    ceased_on: date | None = None
+    note: str | None = Field(None, max_length=2000)
 
 
 class AgreementUpsert(BaseModel):
@@ -68,8 +96,8 @@ async def list_parties(
     tenant_id: str = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ):
-    items = await PartyService(db).list_parties(tenant_id, party_type=party_type, search=search)
-    return [p.to_dict(include_profile=True) for p in items]
+    svc = PartyService(db)
+    return await svc.describe(tenant_id, await svc.list_parties(tenant_id, party_type=party_type, search=search))
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -79,11 +107,13 @@ async def create_party(
     user: TokenPayload = Depends(require_permission("party.create")),
     db: AsyncSession = Depends(get_db),
 ):
-    data = body.model_dump()
-    if data.get("processor_profile"):
-        data["processor_profile"] = body.processor_profile.model_dump() if body.processor_profile else None
-    party = await PartyService(db).create(tenant_id, user.sub or user.email, **data)
-    return party.to_dict(include_profile=True)
+    svc = PartyService(db)
+    try:
+        data = await svc.check_input(tenant_id, None, body.model_dump())
+        party = await svc.create(tenant_id, user.sub or user.email, **data)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    return (await svc.describe(tenant_id, [party]))[0]
 
 
 @router.get("/agreements")
@@ -134,11 +164,12 @@ async def get_party(
     tenant_id: str = Depends(require_tenant),
     db: AsyncSession = Depends(get_db),
 ):
-    party = await PartyService(db).get(tenant_id, party_id)
+    svc = PartyService(db)
+    party = await svc.get(tenant_id, party_id)
     if not party:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Soggetto non trovato")
     response.headers["ETag"] = etag_of(party)
-    return party.to_dict(include_profile=True)
+    return (await svc.describe(tenant_id, [party]))[0]
 
 
 @router.patch("/{party_id}")
@@ -150,18 +181,39 @@ async def update_party(
     user: TokenPayload = Depends(require_permission("party.edit")),
     db: AsyncSession = Depends(get_db),
 ):
-    current = await PartyService(db).get(tenant_id, party_id)
+    svc = PartyService(db)
+    current = await svc.get(tenant_id, party_id)
     if not current:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Soggetto non trovato")
     assert_version(current, version)
     try:
-        data = body.model_dump()
-        if data.get("processor_profile"):
-            data["processor_profile"] = body.processor_profile.model_dump()
-        party = await PartyService(db).update(tenant_id, party_id, user.sub or user.email, **data)
-        return party.to_dict(include_profile=True)
+        data = await svc.check_input(tenant_id, party_id, body.model_dump())
+        party = await svc.update(tenant_id, party_id, user.sub or user.email, **data)
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    return (await svc.describe(tenant_id, [party]))[0]
+
+
+@router.put("/{party_id}/cessation")
+async def set_cessation(
+    party_id: str,
+    body: CessationIn,
+    tenant_id: str = Depends(require_tenant),
+    version: int = Depends(require_if_match),
+    user: TokenPayload = Depends(require_permission("party.edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cessazione anticipata dell'incarico di un responsabile o contitolare: il soggetto passa in archivio."""
+    svc = PartyService(db)
+    current = await svc.get(tenant_id, party_id)
+    if not current:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Soggetto non trovato")
+    assert_version(current, version)
+    try:
+        party = await svc.set_cessation(tenant_id, party_id, user.sub or user.email, body.ceased_on, body.note)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    return (await svc.describe(tenant_id, [party]))[0]
 
 
 @router.delete("/{party_id}", status_code=status.HTTP_204_NO_CONTENT)

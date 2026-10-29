@@ -43,6 +43,7 @@ import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
 import { PersonField } from '../components/PortalPeople';
 import { MultiPick, UnitPicker } from '../components/UnitPicker';
+import { AgreementRef, PartyPicker, PartyRef } from '../components/PartyPicker';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from '../components/ErrorBanner';
 
@@ -82,7 +83,6 @@ interface LegalBasis { code: string; description: string }
 interface SubjectCat { id: string; code: string; name: string }
 interface DataCat { id: string; code: string; name: string; parent_id: string | null; gdpr_class: string }
 interface Asset { id: string; code: string; name: string }
-interface Party { id: string; code: string; legal_name: string }
 
 const STATUSES = ['DRAFT', 'IN_REVIEW', 'APPROVED', 'ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const;
 const TRANSITIONS: Record<string, string[]> = {
@@ -146,7 +146,8 @@ export const RegisterPage: React.FC = () => {
   const [subjects, setSubjects] = useState<SubjectCat[]>([]);
   const [dataCats, setDataCats] = useState<DataCat[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
+  const [parties, setParties] = useState<PartyRef[]>([]);
+  const [agreements, setAgreements] = useState<AgreementRef[]>([]);
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -169,14 +170,15 @@ export const RegisterPage: React.FC = () => {
       if (statusFilter) params.set('status', statusFilter);
       if (search.trim()) params.set('search', search.trim());
       const qs = params.toString();
-      const [acts, unitList, lb, sub, cats, assetList, partyList] = await Promise.all([
+      const [acts, unitList, lb, sub, cats, assetList, partyList, agreementList] = await Promise.all([
         apiClient.get<ProcessingActivity[]>(`/api/privacypa/processing-activities${qs ? `?${qs}` : ''}`),
         apiClient.get<Unit[]>('/api/privacypa/organizational-units'),
         apiClient.get<LegalBasis[]>('/api/privacypa/catalogs/legal-basis'),
         apiClient.get<SubjectCat[]>('/api/privacypa/catalogs/data-subject-categories'),
         apiClient.get<DataCat[]>('/api/privacypa/catalogs/data-categories'),
         apiClient.get<Asset[]>('/api/privacypa/assets'),
-        apiClient.get<Party[]>('/api/privacypa/parties'),
+        apiClient.get<PartyRef[]>('/api/privacypa/parties'),
+        apiClient.get<AgreementRef[]>('/api/privacypa/parties/agreements'),
       ]);
       setItems(acts);
       setUnits(unitList);
@@ -185,6 +187,7 @@ export const RegisterPage: React.FC = () => {
       setDataCats(cats);
       setAssets(assetList);
       setParties(partyList);
+      setAgreements(agreementList);
     } catch (err: any) {
       setError(err.message || t('register.load_failed'));
     }
@@ -608,17 +611,21 @@ export const RegisterPage: React.FC = () => {
               value={form.asset_ids}
               onChange={(ids) => setForm((f) => ({ ...f, asset_ids: ids }))}
             />
-            <MultiPick
-              label={t('register.fields.processors')}
-              items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))}
+            <PartyPicker
+              kind="processor"
+              parties={parties}
+              agreements={agreements}
               value={form.processor_ids}
               onChange={(ids) => setForm((f) => ({ ...f, processor_ids: ids }))}
+              onPartyAdded={(p) => setParties((list) => [...list, p])}
             />
-            <MultiPick
-              label={t('register.fields.recipients')}
-              items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))}
+            <PartyPicker
+              kind="recipient"
+              parties={parties}
+              agreements={agreements}
               value={form.recipient_ids}
               onChange={(ids) => setForm((f) => ({ ...f, recipient_ids: ids }))}
+              onPartyAdded={(p) => setParties((list) => [...list, p])}
             />
           </Section>
 

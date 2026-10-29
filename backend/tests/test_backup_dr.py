@@ -270,7 +270,7 @@ async def test_schema_check_uses_the_alembic_revision(world, tmp_path):
 
         con = sqlite3.connect(migrated)
         con.execute("UPDATE alembic_version SET version_num = (SELECT version_num FROM alembic_version LIMIT 1)")
-        head = "0011"
+        head = "0012"
         con.execute("UPDATE alembic_version SET version_num = ?", (head,))
         con.execute("DROP TABLE privacypa_tags")
         con.commit()

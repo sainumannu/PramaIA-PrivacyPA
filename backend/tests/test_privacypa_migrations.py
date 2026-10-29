@@ -39,7 +39,7 @@ def _diff(url: str) -> list:
 
 def test_there_is_a_single_linear_history():
     script = ScriptDirectory.from_config(alembic_config("sqlite://"))
-    assert len(script.get_heads()) == 1 and script.get_current_head() == "0011"
+    assert len(script.get_heads()) == 1 and script.get_current_head() == "0012"
 
 
 def test_new_database_is_built_from_the_baseline_and_matches_the_models(tmp_path):

@@ -280,7 +280,7 @@ async def test_reviews_are_versioned_and_audit_and_outbox_carry_no_notes(env, w)
 async def _approved_project(env, w, **override):
     """Progetto senza rischio già approvato (fase APPROVAL), con un fornitore responsabile."""
     c = env["client"]
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Gestionale Srl", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Gestionale Srl", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     p = await _create(env, w["ref-a"], supplier_id=party["id"], uses_cloud=True, **override)
     await _to_status(env, w, p["id"], "APPROVAL")
     return p, party

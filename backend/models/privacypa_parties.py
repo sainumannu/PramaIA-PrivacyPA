@@ -78,6 +78,8 @@ class Party(Base):
         SAEnum(PartyType, native_enum=False, length=30), nullable=False, default=PartyType.SUPPLIER
     )
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Persona fisica esterna (consulente, volontario, professionista...): codice fiscale di 16 caratteri
+    natural_person: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     tax_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     vat_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     pec: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -104,6 +106,7 @@ class Party(Base):
             "code": self.code,
             "party_type": self.party_type.value if self.party_type else None,
             "legal_name": self.legal_name,
+            "natural_person": bool(self.natural_person),
             "tax_id": self.tax_id,
             "vat_id": self.vat_id,
             "pec": self.pec,
@@ -136,6 +139,13 @@ class ProcessorProfile(Base):
     )
     last_assessment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     next_assessment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Durata dell'incarico: fino alla fine del contratto collegato oppure fino a una data.
+    # Alla scadenza, o con la cessazione anticipata, il soggetto passa in archivio.
+    appointment_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    appointment_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    appointment_contract_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    ceased_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cessation_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     party: Mapped["Party"] = relationship(back_populates="processor_profile")
 
@@ -148,6 +158,11 @@ class ProcessorProfile(Base):
             "status": self.status.value if self.status else None,
             "last_assessment_date": self.last_assessment_date.isoformat() if self.last_assessment_date else None,
             "next_assessment_date": self.next_assessment_date.isoformat() if self.next_assessment_date else None,
+            "appointment_start": self.appointment_start.isoformat() if self.appointment_start else None,
+            "appointment_end": self.appointment_end.isoformat() if self.appointment_end else None,
+            "appointment_contract_id": self.appointment_contract_id,
+            "ceased_on": self.ceased_on.isoformat() if self.ceased_on else None,
+            "cessation_note": self.cessation_note,
         }
 
 

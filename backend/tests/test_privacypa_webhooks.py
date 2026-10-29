@@ -295,7 +295,7 @@ async def test_new_deadline_rules_open_findings_that_feed_the_webhooks(env, w):
     assert up.status_code == 200, up.text
 
     stats = (await c.post(f"{API}/findings/evaluate", headers=w["mgr"])).json()
-    assert stats["evaluated_rules"] == 31
+    assert stats["evaluated_rules"] == 34
     by_rule = {f["rule_code"]: f for f in (await c.get(f"{API}/findings", params={"status": "ALL", "refresh": "false"}, headers=w["mgr"])).json()}
     assert by_rule["TASK_OVERDUE"]["entity_id"] == task["id"] and by_rule["DPIA_REVIEW_DUE"]["entity_id"] == dpia["id"]
     assert by_rule["DOCUMENT_EXPIRING"]["entity_id"] == doc["id"]

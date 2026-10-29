@@ -80,7 +80,7 @@ async def test_evaluation_opens_is_idempotent_and_resolves_automatically(env, w)
     pid = env["ids"]["proc_a"]
     await _approve(env, pid)
     first = await _evaluate(env, w["mgr"])
-    assert first["opened"] >= 1 and first["evaluated_rules"] == 31
+    assert first["opened"] >= 1 and first["evaluated_rules"] == 34
     again = await _evaluate(env, w["mgr"])
     assert again["opened"] == 0 and again["resolved"] == 0
 
@@ -157,7 +157,7 @@ async def test_permissions_and_scope_on_status_changes(env, w):
     assert (await env["client"].post(f"{FINDINGS}/{f['id']}/status", json={"status": "OPEN"}, headers=ifm(1, w["b"]))).status_code == 404
 
     # una segnalazione sull'anagrafica condivisa richiede visibilità sull'intero ente
-    party = await env["client"].post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR"}, headers=w["mgr"])
+    party = await env["client"].post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])
     await env["client"].post(f"{API}/parties/agreements", json={"party_id": party.json()["id"], "status": "SIGNED", "expiry_date": iso(-5)}, headers=w["mgr"])
     (shared,) = await _by_code(env, w["mgr"], "AGREEMENT_EXPIRED")
     assert (await _set_status(env, w["op-a"], shared, "ACKNOWLEDGED")).status_code == 403
@@ -199,7 +199,7 @@ async def test_active_key_prevents_duplicate_open_findings(env, w):
 async def test_why_and_rule_version_history(env, w):
     await _approve(env, env["ids"]["proc_a"])
     pid = env["ids"]["proc_a"]
-    party = (await env["client"].post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await env["client"].post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     await env["client"].post(f"{API}/parties/agreements", json={"party_id": party["id"], "status": "SIGNED", "expiry_date": iso(30)}, headers=w["mgr"])
     (f,) = await _by_code(env, w["mgr"], "AGREEMENT_EXPIRING")
     assert f["condition"] == "Atto art. 28 firmato che scade entro 60 giorni." and f["rule_version"] == 1
@@ -226,7 +226,7 @@ async def test_why_and_rule_version_history(env, w):
 async def test_rule_listing_and_update_rules(env, w):
     c = env["client"]
     rules = (await c.get(RULES, headers=w["reader"])).json()
-    assert len(rules) == 31 and {r["version"] for r in rules} == {1} and all(r["enabled"] for r in rules)
+    assert len(rules) == 34 and {r["version"] for r in rules} == {1} and all(r["enabled"] for r in rules)
     expiring = next(r for r in rules if r["code"] == "AGREEMENT_EXPIRING")
     assert expiring["default_params"] == {"horizon_days": 60} and expiring["default_severity"] == "MEDIUM"
 
@@ -249,7 +249,7 @@ async def test_rule_listing_and_update_rules(env, w):
 @pytest.mark.asyncio
 async def test_rule_parameters_severity_and_disabling_drive_findings(env, w):
     c = env["client"]
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     await c.post(f"{API}/parties/agreements", json={"party_id": party["id"], "status": "SIGNED", "expiry_date": iso(30)}, headers=w["mgr"])
     async def current():
         return next(r for r in (await c.get(RULES, headers=w["mgr"])).json() if r["code"] == "AGREEMENT_EXPIRING")
@@ -268,7 +268,7 @@ async def test_rule_parameters_severity_and_disabling_drive_findings(env, w):
     assert await _by_code(env, w["mgr"], "AGREEMENT_EXPIRING") == []
     closed = await _by_code(env, w["mgr"], "AGREEMENT_EXPIRING", status="RESOLVED")
     assert closed and closed[0]["resolution_notes"] == "Regola disabilitata"
-    assert (await _evaluate(env, w["mgr"]))["evaluated_rules"] == 30
+    assert (await _evaluate(env, w["mgr"]))["evaluated_rules"] == 33
 
 
 # ---------------------------------------------------------------- nuove regole

@@ -114,8 +114,8 @@ async def test_other_entities_enforce_if_match(env, mgr, kind):
             await db.commit()
             url, body, version = f"/api/privacypa/assets/{a.id}", {"name": "Nuovo nome"}, a.row_version
     elif kind == "party":
-        created = (await c.post("/api/privacypa/parties", json={"legal_name": "Beta S.r.l."}, headers=mgr)).json()
-        url, body, version = f"/api/privacypa/parties/{created['id']}", {"legal_name": "Beta Srl"}, created["row_version"]
+        created = (await c.post("/api/privacypa/parties", json={"legal_name": "Beta S.r.l.", "tax_id": "01234567897"}, headers=mgr)).json()
+        url, body, version = f"/api/privacypa/parties/{created['id']}", {"legal_name": "Beta Srl", "tax_id": "01234567897"}, created["row_version"]
     elif kind == "task":
         created = (await c.post("/api/privacypa/tasks", json={"title": "T"}, headers=mgr)).json()
         url, body, version = f"/api/privacypa/tasks/{created['id']}", {"title": "T2"}, created["row_version"]

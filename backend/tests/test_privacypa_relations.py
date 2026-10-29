@@ -23,7 +23,7 @@ async def w(env):
         db.add(asset)
         await db.commit()
         asset_id = asset.id
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore", "party_type": "PROCESSOR"}, headers=_h(TA, "mgr"))).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=_h(TA, "mgr"))).json()
     return {"mgr": _h(TA, "mgr"), "reader": _h(TA, "reader"), "op-a": _h(TA, "op-a"), "op-b": _h(TA, "op-b"),
             "b": _h(TB, "b-mgr"), "asset": asset_id, "party": party["id"]}
 

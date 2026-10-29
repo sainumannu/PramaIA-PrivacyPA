@@ -45,7 +45,7 @@ async def test_domain_events_are_published_with_references_and_dates_only(env, w
     c, pid = env["client"], env["ids"]["proc_a"]
     v = await version_of(c, f"{API}/processing-activities/{pid}")
     await c.post(f"{API}/processing-activities/{pid}/status", json={"status": "IN_REVIEW", "notes": "note riservate"}, headers=ifm(v, w["op"]))
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore Segreto", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore Segreto", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     await c.post(f"{API}/contracts", json={"party_id": party["id"], "title": "Contratto riservato", "status": "ACTIVE", "end_date": (TODAY + timedelta(days=20)).isoformat()}, headers=w["mgr"])
     await c.post(f"{API}/tasks", json={"title": "Task con dati", "description": "descrizione", "due_at": "2030-01-05T10:00:00"}, headers=w["mgr"])
 
@@ -81,7 +81,7 @@ async def test_a_rejected_request_publishes_nothing(env, w):
 @pytest.mark.asyncio
 async def test_finding_events_are_published(env, w):
     c = env["client"]
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR"}, headers=w["mgr"])).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Cloud", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=w["mgr"])).json()
     await c.post(f"{API}/parties/agreements", json={"party_id": party["id"], "status": "SIGNED", "expiry_date": (TODAY - timedelta(days=1)).isoformat()}, headers=w["mgr"])
     (finding,) = (await c.get(f"{API}/findings", params={"code": "AGREEMENT_EXPIRED"}, headers=w["mgr"])).json()
     opened = [e for e in await _events(env, event_type="finding.") if e["aggregate_id"] == finding["id"]]

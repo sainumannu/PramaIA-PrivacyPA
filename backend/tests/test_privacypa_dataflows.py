@@ -38,7 +38,7 @@ async def w(env):
         )
         await db.commit()
         refs = {"cat": cat.id, "other_cat": other_cat.id, "asset": asset.id}
-    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore Cloud", "party_type": "PROCESSOR"}, headers=_h(TA, "mgr"))).json()
+    party = (await c.post(f"{API}/parties", json={"legal_name": "Fornitore Cloud", "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=_h(TA, "mgr"))).json()
     return {**refs, "party": party["id"], **{k: _h(TA, k) for k in ("mgr", "reader", "op-a", "op-b")}, "b": _h(TB, "b-mgr")}
 
 

@@ -30,7 +30,7 @@ async def world(env):
     mgr = _h(TA, "mgr")
     parties = {}
     for key, name in (("p1", "Cloud Uno"), ("p2", "Hosting Due"), ("p3", "Backup Tre")):
-        r = await c.post(PARTIES, json={"legal_name": name, "party_type": "PROCESSOR"}, headers=mgr)
+        r = await c.post(PARTIES, json={"legal_name": name, "party_type": "PROCESSOR", "tax_id": "01234567897", "processor_profile": {"appointment_end": "2099-12-31"}}, headers=mgr)
         assert r.status_code == 201, r.text
         parties[key] = r.json()["id"]
     return {"mgr": mgr, "reader": _h(TA, "reader"), "b": _h(TB, "b-mgr"), **parties}
