@@ -11,7 +11,7 @@
 ; ============================================================================
 
 #define MyAppName      "PramaIA-PrivacyManager"
-#define MyAppVersion "1.0.6"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "PramaIA Platform"
 #define MyAppURL       "https://pramaia.ai"
 #define MyAppExeName   "PramaIA-PrivacyManager.exe"
@@ -524,6 +524,7 @@ begin
   if MemoTasksInfo <> '' then
     Result := Result + MemoTasksInfo + NewLine;
 end;
+
 
 
 
