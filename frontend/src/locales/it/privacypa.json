@@ -1988,6 +1988,9 @@
     "add_recipient": "Nuovo destinatario",
     "no_agreement": "Senza un atto art. 28 firmato e in vigore: {{names}}.",
     "open_parties": "Registra l'atto in Soggetti esterni",
-    "ceased": "Incarico cessato, da sostituire: {{names}}."
+    "ceased": "Incarico cessato, da sostituire: {{names}}.",
+    "hint_party": "Scegli dall'anagrafica dei soggetti esterni (cerca per nome, codice fiscale o P.IVA). Se manca, registralo con «Nuovo soggetto».",
+    "empty_party": "L'anagrafica dei soggetti esterni è vuota: registra il soggetto con «Nuovo soggetto».",
+    "add_party": "Nuovo soggetto"
   }
 }

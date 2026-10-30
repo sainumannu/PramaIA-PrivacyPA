@@ -14,9 +14,8 @@ import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from '../components/ErrorBanner';
-import { SinglePick } from '../components/UnitPicker';
+import { PartyRef, PartySelect } from '../components/PartyPicker';
 
-interface Party { id: string; code: string; legal_name: string }
 interface Contract {
   id: string; row_version: number; code: string; party_id: string; title: string; cig: string | null; cup: string | null;
   start_date: string | null; end_date: string | null; renewal_date: string | null; status: string;
@@ -52,7 +51,7 @@ export const SupplyChainPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
   const { can } = usePermissions();
   const [tab, setTab] = useState(0);
-  const [parties, setParties] = useState<Party[]>([]);
+  const [parties, setParties] = useState<PartyRef[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [subs, setSubs] = useState<Subprocessor[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +65,7 @@ export const SupplyChainPage: React.FC = () => {
   const load = async () => {
     try {
       const [p, c, s] = await Promise.all([
-        apiClient.get<Party[]>('/api/privacypa/parties'),
+        apiClient.get<PartyRef[]>('/api/privacypa/parties'),
         apiClient.get<Contract[]>('/api/privacypa/contracts'),
         apiClient.get<Subprocessor[]>('/api/privacypa/subprocessors'),
       ]);
@@ -90,6 +89,7 @@ export const SupplyChainPage: React.FC = () => {
   };
 
   const saveContract = async () => {
+    if (!cForm.party_id || !cForm.title.trim()) { setDialogError(t('common.fill_required')); return; }
     const body = {
       party_id: cForm.party_id, title: cForm.title.trim(), cig: cForm.cig.trim() || null, cup: cForm.cup.trim() || null,
       start_date: cForm.start_date || null, end_date: cForm.end_date || null, renewal_date: cForm.renewal_date || null,
@@ -131,6 +131,9 @@ export const SupplyChainPage: React.FC = () => {
   };
 
   const saveSub = async () => {
+    if (!sForm.processor_party_id || !sForm.subprocessor_party_id || !sForm.service_description.trim()) {
+      setDialogError(t('common.fill_required')); return;
+    }
     const body = {
       processor_party_id: sForm.processor_party_id, subprocessor_party_id: sForm.subprocessor_party_id,
       service_description: sForm.service_description.trim(), authorization_type: sForm.authorization_type,
@@ -159,9 +162,10 @@ export const SupplyChainPage: React.FC = () => {
     }
   };
 
-  const partySelect = (label: string, value: string, onChange: (v: string) => void, disabled = false) => (
-    <SinglePick label={label} value={value} onChange={onChange} disabled={disabled}
-      items={parties.map((p) => ({ id: p.id, label: `${p.code} — ${p.legal_name}` }))} />
+  // Fornitori e responsabili si scelgono dall'anagrafica; chi manca si registra dal campo stesso.
+  const partySelect = (label: string, value: string, onChange: (v: string) => void, disabled: boolean, defaultType: string) => (
+    <PartySelect label={label} value={value} onChange={onChange} disabled={disabled} required defaultType={defaultType}
+      parties={parties} onPartyAdded={(p) => { setParties((list) => [...list, p]); load(); }} />
   );
 
   return (
@@ -256,8 +260,8 @@ export const SupplyChainPage: React.FC = () => {
       <Dialog open={contractDialog.open} onClose={() => setContractDialog({ open: false, editing: null })} maxWidth="sm" fullWidth>
         <DialogTitle>{contractDialog.editing ? t('supply.edit_contract') : t('supply.add_contract')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          {partySelect(t('supply.party'), cForm.party_id, (v) => setCForm({ ...cForm, party_id: v }), Boolean(contractDialog.editing))}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
+          {partySelect(t('supply.party'), cForm.party_id, (v) => setCForm((f) => ({ ...f, party_id: v })), Boolean(contractDialog.editing), 'SUPPLIER')}
           <TextField label={t('supply.contract_title')} value={cForm.title} required onChange={(e) => setCForm({ ...cForm, title: e.target.value })} />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField label="CIG" value={cForm.cig} onChange={(e) => setCForm({ ...cForm, cig: e.target.value })} inputProps={{ maxLength: 10 }} />
@@ -277,16 +281,16 @@ export const SupplyChainPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setContractDialog({ open: false, editing: null })}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={saveContract} disabled={!cForm.party_id || !cForm.title.trim()}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={saveContract}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={subDialog.open} onClose={() => setSubDialog({ open: false, editing: null })} maxWidth="sm" fullWidth>
         <DialogTitle>{subDialog.editing ? t('supply.edit_subprocessor') : t('supply.add_subprocessor')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          {partySelect(t('supply.processor'), sForm.processor_party_id, (v) => setSForm({ ...sForm, processor_party_id: v }), Boolean(subDialog.editing))}
-          {partySelect(t('supply.subprocessor'), sForm.subprocessor_party_id, (v) => setSForm({ ...sForm, subprocessor_party_id: v }), Boolean(subDialog.editing))}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
+          {partySelect(t('supply.processor'), sForm.processor_party_id, (v) => setSForm((f) => ({ ...f, processor_party_id: v })), Boolean(subDialog.editing), 'PROCESSOR')}
+          {partySelect(t('supply.subprocessor'), sForm.subprocessor_party_id, (v) => setSForm((f) => ({ ...f, subprocessor_party_id: v })), Boolean(subDialog.editing), 'PROCESSOR')}
           <TextField label={t('supply.service')} value={sForm.service_description} required multiline minRows={2} onChange={(e) => setSForm({ ...sForm, service_description: e.target.value })} />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <FormControl fullWidth>
@@ -311,7 +315,7 @@ export const SupplyChainPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSubDialog({ open: false, editing: null })}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={saveSub} disabled={!sForm.processor_party_id || !sForm.subprocessor_party_id || !sForm.service_description.trim()}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={saveSub}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 

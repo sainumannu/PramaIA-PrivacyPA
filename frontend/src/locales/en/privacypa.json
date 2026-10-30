@@ -1988,6 +1988,9 @@
     "add_recipient": "New recipient",
     "no_agreement": "No signed art. 28 agreement in force: {{names}}.",
     "open_parties": "Record the agreement in External parties",
-    "ceased": "Appointment ended, to be replaced: {{names}}."
+    "ceased": "Appointment ended, to be replaced: {{names}}.",
+    "hint_party": "Choose from the external parties registry (search by name, tax code or VAT number). If it is missing, register it with \"New party\".",
+    "empty_party": "The external parties registry is empty: register the party with \"New party\".",
+    "add_party": "New party"
   }
 }

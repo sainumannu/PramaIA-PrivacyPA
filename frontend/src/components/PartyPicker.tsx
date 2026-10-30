@@ -287,6 +287,74 @@ export const PartyDialog: React.FC<{
   );
 };
 
+// ---------------------------------------------------------------- scelta di un soggetto
+
+const optionDetail = (p: PartyRef, t: (k: string, o?: Record<string, unknown>) => string) =>
+  [p.code, identifiers(p) || t('party_picker.no_identifier'),
+    p.appointment?.until && t('parties.appointment.until', { date: p.appointment.until })].filter(Boolean).join(' · ');
+
+const searchParties = (opts: PartyRef[], input: string) => {
+  const q = input.trim().toLowerCase();
+  return q ? opts.filter((p) => [p.legal_name, p.code, p.tax_id || '', p.vat_id || ''].some((s) => s.toLowerCase().includes(q))) : opts;
+};
+
+// Un soggetto dell'anagrafica (fornitore di un contratto, responsabile, sub-responsabile...). Il testo digitato serve
+// solo a cercare: uscendo dal campo si sceglie la voce evidenziata; chi manca si registra con «Nuovo soggetto».
+export const PartySelect: React.FC<{
+  label: string; parties: PartyRef[]; value: string; onChange: (id: string) => void; onPartyAdded: (party: PartyRef) => void;
+  required?: boolean; disabled?: boolean; defaultType?: string;
+}> = ({ label, parties, value, onChange, onPartyAdded, required, disabled, defaultType = 'SUPPLIER' }) => {
+  const { t } = useTranslation('privacypa');
+  const { can } = usePermissions();
+  const [adding, setAdding] = useState(false);
+  const options = useMemo(() => parties.filter((p) => !isArchived(p) || p.id === value)
+    .sort((a, b) => a.legal_name.localeCompare(b.legal_name)), [parties, value]);
+  const selected = value ? parties.find((p) => p.id === value) || { id: value, code: '', legal_name: value, party_type: 'OTHER' } : null;
+  const empty = options.length === 0;
+
+  return (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+      <Autocomplete
+        sx={{ flex: 1 }}
+        disabled={disabled}
+        autoHighlight
+        autoSelect
+        options={options}
+        value={selected}
+        getOptionLabel={(p) => (p.code ? `${p.code} — ${p.legal_name}` : p.legal_name)}
+        isOptionEqualToValue={(o, v) => o.id === v.id}
+        onChange={(_, p) => onChange(p ? p.id : '')}
+        filterOptions={(opts, state) => searchParties(opts, state.inputValue)}
+        noOptionsText={t('party_picker.no_match')}
+        renderOption={(props, p) => (
+          <li {...props} key={p.id}>
+            <Box>
+              <Typography variant="body2">{p.legal_name}</Typography>
+              <Typography variant="caption" color="text.secondary">{optionDetail(p, t)}</Typography>
+            </Box>
+          </li>
+        )}
+        renderInput={(params) => (
+          <TextField {...params} label={label} required={required} placeholder={empty ? undefined : t('party_picker.search')}
+            helperText={selected && identifiers(selected as PartyRef) ? identifiers(selected as PartyRef)
+              : t(empty ? 'party_picker.empty_party' : 'party_picker.hint_party')} />
+        )}
+      />
+      {!disabled && can('party.create') && (
+        <Button size="small" startIcon={<AddIcon />} onClick={() => setAdding(true)} sx={{ mt: 1, whiteSpace: 'nowrap' }}>
+          {t('party_picker.add_party')}
+        </Button>
+      )}
+      <PartyDialog
+        open={adding}
+        defaultType={defaultType}
+        onClose={() => setAdding(false)}
+        onSaved={(party) => { setAdding(false); onPartyAdded(party); onChange(party.id); }}
+      />
+    </Box>
+  );
+};
+
 // ---------------------------------------------------------------- scelta di responsabili e destinatari
 
 // Responsabili art. 28 o destinatari di un trattamento: si scelgono solo dall'anagrafica dei soggetti esterni,
@@ -325,18 +393,12 @@ export const PartyPicker: React.FC<{
           isOptionEqualToValue={(o, v) => o.id === v.id}
           onChange={(_, list) => onChange(list.map((p) => p.id))}
           noOptionsText={t('party_picker.no_match')}
-          filterOptions={(opts, state) => {
-            const q = state.inputValue.trim().toLowerCase();
-            return q ? opts.filter((p) => [p.legal_name, p.code, p.tax_id || '', p.vat_id || ''].some((s) => s.toLowerCase().includes(q))) : opts;
-          }}
+          filterOptions={(opts, state) => searchParties(opts, state.inputValue)}
           renderOption={(props, p) => (
             <li {...props} key={p.id}>
               <Box>
                 <Typography variant="body2">{p.legal_name}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {[p.code, identifiers(p) || t('party_picker.no_identifier'),
-                    p.appointment?.until && t('parties.appointment.until', { date: p.appointment.until })].filter(Boolean).join(' · ')}
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{optionDetail(p, t)}</Typography>
               </Box>
             </li>
           )}
