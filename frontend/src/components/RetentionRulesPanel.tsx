@@ -81,6 +81,8 @@ export const RetentionRulesPanel: React.FC<Props> = ({ processingId, categories,
   };
 
   const save = async () => {
+    const missing = ([[!form.retention_criterion.trim(), t('retention.criterion')]] as [boolean, string][]).filter(([empty]) => empty).map(([, label]) => label);
+    if (missing.length) { setDialogError(t('wf.missing_required', { fields: missing.join(', ') })); return; }
     const body = {
       data_category_id: form.data_category_id || null,
       record_class: form.record_class.trim() || null,
@@ -155,7 +157,7 @@ export const RetentionRulesPanel: React.FC<Props> = ({ processingId, categories,
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? t('retention.edit') : t('retention.add')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           <FormControl fullWidth>
             <InputLabel>{t('retention.category')}</InputLabel>
             <Select label={t('retention.category')} value={form.data_category_id} onChange={(e) => setForm({ ...form, data_category_id: e.target.value })}>
@@ -194,7 +196,7 @@ export const RetentionRulesPanel: React.FC<Props> = ({ processingId, categories,
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={save} disabled={!form.retention_criterion.trim()}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={save}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

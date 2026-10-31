@@ -104,6 +104,8 @@ export const DataFlowsPanel: React.FC<Props> = ({ processingId, categories, canE
   };
 
   const save = async () => {
+    const missing = ([[!form.description.trim(), t('flows.description')]] as [boolean, string][]).filter(([empty]) => empty).map(([, label]) => label);
+    if (missing.length) { setDialogError(t('wf.missing_required', { fields: missing.join(', ') })); return; }
     const side = (kind: 'source' | 'target') => {
       const type = form[`${kind}_type` as 'source_type'];
       return REFERENCED.includes(type)
@@ -235,7 +237,7 @@ export const DataFlowsPanel: React.FC<Props> = ({ processingId, categories, canE
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? t('flows.edit') : t('flows.add')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           {endpointFields('source')}
           {endpointFields('target')}
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -267,7 +269,7 @@ export const DataFlowsPanel: React.FC<Props> = ({ processingId, categories, canE
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={save} disabled={!form.description.trim()}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={save}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -42,6 +42,9 @@ export const WebhooksPage: React.FC = () => {
   const [history, setHistory] = useState<{ sub: Subscription; items: Delivery[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const formOpen = Boolean(form);
+  useEffect(() => setDialogError(null), [formOpen]);
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +58,8 @@ export const WebhooksPage: React.FC = () => {
 
   const save = async () => {
     if (!form) return;
+    const missing = ([[!form.name.trim(), t('webhooks.name')], [!form.url.trim(), t('webhooks.url')], [form.events.length === 0, t('webhooks.events')]] as [boolean, string][]).filter(([empty]) => empty).map(([, label]) => label);
+    if (missing.length) { setDialogError(t('wf.missing_required', { fields: missing.join(', ') })); return; }
     const body = { name: form.name, url: form.url, events: form.events, active: form.active };
     try {
       if (form.id) {
@@ -65,7 +70,7 @@ export const WebhooksPage: React.FC = () => {
         setSecret({ name: created.name, value: created.secret });
       }
       setForm(null); setError(null); load();
-    } catch (e: any) { fail(e); }
+    } catch (e: any) { setDialogError(e.message); }
   };
 
   const rotate = async (s: Subscription) => {
@@ -151,11 +156,12 @@ export const WebhooksPage: React.FC = () => {
       <Dialog open={!!form} onClose={() => setForm(null)} fullWidth maxWidth="sm">
         <DialogTitle>{form?.id ? t('webhooks.edit') : t('webhooks.add')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           {form && (
             <>
               <TextField label={t('webhooks.name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               <TextField label={t('webhooks.url')} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} required helperText={t('webhooks.url_hint')} />
-              <FormControl>
+              <FormControl required>
                 <InputLabel>{t('webhooks.events')}</InputLabel>
                 <Select
                   multiple label={t('webhooks.events')} value={form.events} renderValue={(v) => v.join(', ')}
@@ -176,7 +182,7 @@ export const WebhooksPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setForm(null)}>{t('common.cancel')}</Button>
-          <Button variant="contained" disabled={!form || !form.name.trim() || !form.url.trim() || form.events.length === 0} onClick={save}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={save}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 

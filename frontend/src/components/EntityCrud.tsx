@@ -10,11 +10,12 @@ import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
 import { AnnotationsButton } from './AnnotationsPanel';
 import { PeopleField, PersonField } from './PortalPeople';
+import { PartyRef, PartySelect } from './PartyPicker';
 import { MultiPick, SinglePick, UnitPicker } from './UnitPicker';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from './ErrorBanner';
 
-export type FieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'number' | 'boolean' | 'tristate' | 'select' | 'multiselect' | 'unit' | 'units' | 'ref' | 'refs' | 'person' | 'people';
+export type FieldType = 'text' | 'textarea' | 'date' | 'datetime' | 'number' | 'boolean' | 'tristate' | 'select' | 'multiselect' | 'unit' | 'units' | 'ref' | 'refs' | 'person' | 'people' | 'party';
 
 export interface FieldSpec {
   name: string;
@@ -27,6 +28,8 @@ export interface FieldSpec {
   // Per 'ref' e 'refs' (scelta multipla): elenco da cui scegliere record (l'endpoint può dipendere dagli altri valori del modulo).
   refEndpoint?: string | ((values: Values) => string | null);
   refLabel?: (row: any) => string;
+  // Per 'party': tipo proposto quando si registra un soggetto nuovo dal campo (SUPPLIER se assente)
+  partyType?: string;
   dependsOn?: string;           // si svuota quando cambia il campo indicato
   defaultValue?: any;           // valore iniziale in creazione (altrimenti vuoto)
 }
@@ -103,6 +106,20 @@ const RefSelect: React.FC<{
   );
 };
 
+// Un soggetto esterno dall'anagrafica (fornitore...), con «Nuovo soggetto» per registrarlo se manca.
+const PartyField: React.FC<{
+  field: FieldSpec; label: string; value: string; disabled: boolean; onChange: (value: string) => void;
+}> = ({ field, label, value, disabled, onChange }) => {
+  const [parties, setParties] = useState<PartyRef[]>([]);
+  useEffect(() => {
+    apiClient.get<PartyRef[]>('/api/privacypa/parties').then(setParties).catch(() => undefined);
+  }, []);
+  return (
+    <PartySelect label={label} parties={parties} value={value} required={field.required} disabled={disabled}
+      defaultType={field.partyType} onChange={onChange} onPartyAdded={(p) => setParties((list) => [...list, p])} />
+  );
+};
+
 // Più record dello stesso elenco (categorie di dati, trattamenti, corsi...), con ricerca.
 const RefMultiSelect: React.FC<{
   field: FieldSpec; label: string; values: Values; disabled: boolean; onChange: (value: string[]) => void;
@@ -155,6 +172,9 @@ export const FormFields: React.FC<{
         if (f.type === 'person') {
           return <PersonField key={f.name} label={label} value={values[f.name] ?? ''} required={f.required} disabled={disabled} hint={hint} onChange={(v) => set(f.name, v)} />;
         }
+        if (f.type === 'party') {
+          return <PartyField key={f.name} field={f} label={label} value={values[f.name] ?? ''} disabled={disabled} onChange={(v) => set(f.name, v)} />;
+        }
         if (f.type === 'ref') {
           return <RefSelect key={f.name} field={f} label={label} values={values} disabled={disabled} onChange={(v) => set(f.name, v)} />;
         }
@@ -204,8 +224,12 @@ export const FormFields: React.FC<{
   );
 };
 
-export const missingRequired = (fields: FieldSpec[], values: Values) =>
-  fields.some((f) => f.required && (values[f.name] === '' || values[f.name] == null || (Array.isArray(values[f.name]) && values[f.name].length === 0)));
+// Il pulsante di salvataggio resta attivo: se mancano campi obbligatori, il messaggio dice quali (con le etichette del modulo).
+export const requiredMessage = (fields: FieldSpec[], values: Values, t: (key: string, opts?: any) => string): string | null => {
+  const missing = fields.filter((f) => f.required
+    && (values[f.name] === '' || values[f.name] == null || (Array.isArray(values[f.name]) && values[f.name].length === 0)));
+  return missing.length ? t('wf.missing_required', { fields: missing.map((f) => t(`wf.fields.${f.name}`)).join(', ') }) : null;
+};
 
 interface Props {
   page: string;                                   // chiave in wf.pages.<page>.{title,subtitle}
@@ -273,6 +297,8 @@ export const EntityCrudPage: React.FC<Props> = ({
   const save = async () => {
     // In modifica i campi `createOnly` non si inviano; il PATCH sostituisce il resto del record.
     const usable = editing ? fields.filter((f) => !f.createOnly) : fields;
+    const missing = requiredMessage(usable, values, t);
+    if (missing) { setDialogError(missing); return; }
     let body = bodyFromValues(usable, values);
     if (toBody) body = toBody(body, editing);
     try {
@@ -309,6 +335,8 @@ export const EntityCrudPage: React.FC<Props> = ({
   const confirmAction = async () => {
     if (!running) return;
     const { action, row } = running;
+    const missing = requiredMessage(runningFields, actionValues, t);
+    if (missing) { setDialogError(missing); return; }
     const body = bodyFromValues([...(action.fields || []), { name: 'notes', type: 'textarea' as FieldType }], actionValues);
     try {
       await action.run(row, body);
@@ -369,24 +397,24 @@ export const EntityCrudPage: React.FC<Props> = ({
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? t('wf.edit') : t('wf.add')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           <FormFields fields={fields} values={values} onChange={setValues} units={units} editing={Boolean(editing)} onUnitAdded={loadUnits} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={save} disabled={missingRequired(fields.filter((f) => !(editing && f.createOnly)), values)}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={save}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(running)} onClose={() => setRunning(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{running ? t(`wf.actions.${running.action.key}`) : ''}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {dialogError && <Alert severity="error">{dialogError}</Alert>}
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           <FormFields fields={runningFields} values={actionValues} onChange={setActionValues} units={units} onUnitAdded={loadUnits} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRunning(null)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={confirmAction} disabled={missingRequired(runningFields, actionValues)}>{t('wf.confirm')}</Button>
+          <Button variant="contained" onClick={confirmAction}>{t('wf.confirm')}</Button>
         </DialogActions>
       </Dialog>
 

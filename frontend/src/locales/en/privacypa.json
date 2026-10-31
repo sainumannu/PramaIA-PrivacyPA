@@ -1313,7 +1313,8 @@
         "CHANGE": "Change",
         "REVOKE": "Revoke"
       }
-    }
+    },
+    "missing_required": "Fill in the required fields: {{fields}}."
   },
   "documents": {
     "title": "Documents and evidence",

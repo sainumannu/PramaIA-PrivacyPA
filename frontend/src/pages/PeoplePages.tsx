@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch,
+  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch,
   Table, TableBody, TableCell, TableHead, TableRow, Typography,
 } from '@mui/material';
 import SchoolIcon from '@mui/icons-material/School';
@@ -8,7 +8,7 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import BadgeIcon from '@mui/icons-material/Badge';
 import { PramaLayout } from '../components/PramaLayout';
 import {
-  EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, missingRequired, postAction,
+  EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, postAction, requiredMessage,
 } from '../components/EntityCrud';
 import { PortalPerson, usePortalPeople } from '../components/PortalPeople';
 import { apiClient } from '../services/apiClient';
@@ -32,6 +32,8 @@ const CourseDetail: React.FC<{ course: any }> = ({ course }) => {
   const [sessions, setSessions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState<{ row: any; mode: 'complete' | 'waive' } | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  useEffect(() => setDialogError(null), [running]);
   const [values, setValues] = useState<Values>({});
 
   const load = async () => {
@@ -50,13 +52,15 @@ const CourseDetail: React.FC<{ course: any }> = ({ course }) => {
 
   const confirm = async () => {
     if (!running) return;
+    const missing = requiredMessage(fields, values, t);
+    if (missing) { setDialogError(missing); return; }
     const body = bodyFromValues(fields, values);
     try {
       await apiClient.post(`${TR}/assignments/${running.row.id}/${running.mode}`, body, { version: running.row.row_version });
       setRunning(null);
       await load();
     } catch (err: any) {
-      setError(err.message);
+      setDialogError(err.message);
     }
   };
 
@@ -98,11 +102,12 @@ const CourseDetail: React.FC<{ course: any }> = ({ course }) => {
       <Dialog open={Boolean(running)} onClose={() => setRunning(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{running ? t(`wf.actions.${running.mode}`) : ''}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           <FormFields fields={fields} values={values} onChange={setValues} units={[]} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRunning(null)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={confirm} disabled={missingRequired(fields, values)}>{t('wf.confirm')}</Button>
+          <Button variant="contained" onClick={confirm}>{t('wf.confirm')}</Button>
         </DialogActions>
       </Dialog>
     </>

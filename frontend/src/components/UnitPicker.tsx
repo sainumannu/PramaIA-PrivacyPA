@@ -135,7 +135,8 @@ export const MultiPick: React.FC<{
   );
 };
 
-// Una voce di un elenco di record (fornitore, trattamento, sistema...), con ricerca.
+// Una voce di un elenco di record (trattamento, sistema...), con ricerca: uscendo dal campo si sceglie la voce
+// evidenziata, così il testo digitato non va perso. Per i soggetti esterni c'è PartySelect (con «Nuovo soggetto»).
 export const SinglePick: React.FC<{
   label: string; items: { id: string; label: string }[]; value: string; onChange: (id: string) => void;
   required?: boolean; disabled?: boolean; helperText?: string;
@@ -143,6 +144,8 @@ export const SinglePick: React.FC<{
   const selected = value ? items.find((i) => i.id === value) || { id: value, label: value } : null;
   return (
     <Autocomplete
+      autoHighlight
+      autoSelect
       options={items}
       value={selected}
       disabled={disabled}

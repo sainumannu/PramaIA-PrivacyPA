@@ -1313,7 +1313,8 @@
         "CHANGE": "Modifica",
         "REVOKE": "Revoca"
       }
-    }
+    },
+    "missing_required": "Compila i campi obbligatori: {{fields}}."
   },
   "documents": {
     "title": "Documenti ed evidenze",

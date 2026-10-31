@@ -95,7 +95,7 @@ export const ProjectsPage: React.FC = () => {
   const fields: FieldSpec[] = [
     { name: 'title', type: 'text', required: true }, { name: 'description', type: 'textarea' },
     { name: 'proposing_unit_id', type: 'unit', required: true }, { name: 'project_owner_id', type: 'person', required: true },
-    { name: 'supplier_id', type: 'ref', refEndpoint: '/api/privacypa/parties', refLabel: (r) => r.legal_name },
+    { name: 'supplier_id', type: 'party' },
     { name: 'confidentiality_level', type: 'select', options: ['INTERNAL', 'RESTRICTED', 'HIGHLY_RESTRICTED'], enumName: 'confidentiality' },
     ...FLAGS.map((name) => ({ name, type: 'boolean' as const })),
   ];

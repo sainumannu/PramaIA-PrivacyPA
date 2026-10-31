@@ -109,6 +109,8 @@ export const NoticesPage: React.FC = () => {
   };
 
   const create = async () => {
+    const missing = ([[!createForm.title.trim(), t('notices.name')], [!createForm.owner_unit_id, t('notices.unit')]] as [boolean, string][]).filter(([empty]) => empty).map(([, label]) => label);
+    if (missing.length) { setDialogError(t('wf.missing_required', { fields: missing.join(', ') })); return; }
     try {
       const created = await apiClient.post<Notice>('/api/privacypa/notices', {
         title: createForm.title.trim(), audience: createForm.audience.trim() || null, owner_unit_id: createForm.owner_unit_id,
@@ -208,7 +210,7 @@ export const NoticesPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={create} disabled={!createForm.title.trim() || !createForm.owner_unit_id}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={create}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 

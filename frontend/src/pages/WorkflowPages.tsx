@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import GavelIcon from '@mui/icons-material/Gavel';
 import BuildIcon from '@mui/icons-material/Build';
 import ReportIcon from '@mui/icons-material/ReportProblem';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import {
-  ActionSpec, EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, missingRequired, postAction,
+  ActionSpec, EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, postAction, requiredMessage,
 } from '../components/EntityCrud';
 import { PersonName } from '../components/PortalPeople';
 import { apiClient } from '../services/apiClient';
@@ -198,19 +198,23 @@ const AuditDetail: React.FC<{ audit: any; reload: () => Promise<void>; units: { 
   const [detail, setDetail] = useState<any>(audit);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ kind: 'finding' | 'action'; finding?: any } | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  useEffect(() => setDialogError(null), [dialog]);
   const [values, setValues] = useState<Values>({});
   useEffect(() => { apiClient.get(`${AUDITS}/${audit.id}`).then(setDetail).catch((e) => setError(e.message)); }, [audit]);
 
   const canWrite = can('auditplan.edit') && ['PLANNED', 'IN_PROGRESS'].includes(audit.status);
   const fields = dialog?.kind === 'finding' ? FINDING_FIELDS : FROM_FINDING_FIELDS;
   const submit = async () => {
+    const missing = requiredMessage(fields, values, t);
+    if (missing) { setDialogError(missing); return; }
     try {
       const body = bodyFromValues(fields, values);
       if (dialog?.kind === 'finding') await apiClient.post(`${AUDITS}/${audit.id}/findings`, body);
       else await apiClient.post(`${AUDITS}/${audit.id}/findings/${dialog?.finding.id}/corrective-action`, body);
       setDialog(null);
       await reload();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { setDialogError(e.message); }
   };
   const closeFinding = async (f: any) => {
     try { await apiClient.patch(`${AUDITS}/${audit.id}/findings/${f.id}`, { status: 'CLOSED' }); await reload(); } catch (e: any) { setError(e.message); }
@@ -243,11 +247,12 @@ const AuditDetail: React.FC<{ audit: any; reload: () => Promise<void>; units: { 
       <Dialog open={Boolean(dialog)} onClose={() => setDialog(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{dialog?.kind === 'finding' ? t('wf.audit.add_finding') : t('wf.audit.create_action')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {dialogError && <Alert severity="error" onClose={() => setDialogError(null)}>{dialogError}</Alert>}
           <FormFields fields={fields} values={values} onChange={setValues} units={units} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialog(null)}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={submit} disabled={missingRequired(fields, values)}>{t('common.save')}</Button>
+          <Button variant="contained" onClick={submit}>{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
     </>

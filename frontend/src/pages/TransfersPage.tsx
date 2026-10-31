@@ -10,7 +10,7 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from '../components/ErrorBanner';
-import { SinglePick } from '../components/UnitPicker';
+import { PartyRef, PartySelect } from '../components/PartyPicker';
 
 interface Transfer {
   id: string; row_version: number; code: string; title: string; country_code: string; mechanism: string;
@@ -22,7 +22,6 @@ interface Transfer {
   exporter_party_id: string | null; tia_document_id: string | null; last_review_date: string | null;
   links?: { entity_type: string; entity_id: string }[];
 }
-interface Party { id: string; code: string; legal_name: string }
 interface Processing { id: string; code: string; title: string }
 
 const empty = {
@@ -35,7 +34,7 @@ const empty = {
 export const TransfersPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
   const [items, setItems] = useState<Transfer[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
+  const [parties, setParties] = useState<PartyRef[]>([]);
   const [procs, setProcs] = useState<Processing[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -46,7 +45,7 @@ export const TransfersPage: React.FC = () => {
     try {
       const [tr, pa, pr] = await Promise.all([
         apiClient.get<Transfer[]>('/api/privacypa/transfers'),
-        apiClient.get<Party[]>('/api/privacypa/parties'),
+        apiClient.get<PartyRef[]>('/api/privacypa/parties'),
         apiClient.get<Processing[]>('/api/privacypa/processing-activities'),
       ]);
       setItems(tr); setParties(pa); setProcs(pr);
@@ -152,9 +151,10 @@ export const TransfersPage: React.FC = () => {
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <TextField label={t('tia.doc_title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           <TextField label={t('tia.country')} value={form.country_code} onChange={(e) => setForm({ ...form, country_code: e.target.value })} inputProps={{ maxLength: 2 }} />
-          <SinglePick
-            label={t('tia.importer')} items={parties.map((p) => ({ id: p.id, label: p.legal_name }))}
+          <PartySelect
+            label={t('tia.importer')} parties={parties} defaultType="SUPPLIER"
             value={form.importer_party_id} onChange={(id) => setForm((f) => ({ ...f, importer_party_id: id }))}
+            onPartyAdded={(p) => setParties((list) => [...list, p])}
           />
           <FormControl fullWidth>
             <InputLabel>{t('tia.processing')}</InputLabel>

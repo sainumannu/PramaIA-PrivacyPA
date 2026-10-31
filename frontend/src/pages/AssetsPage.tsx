@@ -10,7 +10,8 @@ import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { AnnotationsButton } from '../components/AnnotationsPanel';
 import { PersonField, usePortalPeople } from '../components/PortalPeople';
-import { SinglePick, UnitPicker } from '../components/UnitPicker';
+import { UnitPicker } from '../components/UnitPicker';
+import { PartyRef, PartySelect } from '../components/PartyPicker';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from '../components/ErrorBanner';
 
@@ -23,7 +24,6 @@ interface Asset {
   [field: string]: unknown;
 }
 interface Unit { id: string; name: string; code: string }
-interface Party { id: string; legal_name: string; code: string }
 
 const TYPES = ['APPLICATION','DATABASE','FILE_SHARE','PAPER_ARCHIVE','SERVER','CLOUD_SERVICE','DEVICE_CLASS','INTEGRATION','OTHER'];
 const LIFE = ['PLANNED','ACTIVE','LEGACY','DISMISSION','DISMISSED'];
@@ -44,7 +44,7 @@ export const AssetsPage: React.FC = () => {
   const { t } = useTranslation('privacypa');
   const [items, setItems] = useState<Asset[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [parties, setParties] = useState<Party[]>([]);
+  const [parties, setParties] = useState<PartyRef[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
@@ -56,7 +56,7 @@ export const AssetsPage: React.FC = () => {
       const [a, u, p] = await Promise.all([
         apiClient.get<Asset[]>('/api/privacypa/assets'),
         apiClient.get<Unit[]>('/api/privacypa/organizational-units'),
-        apiClient.get<Party[]>('/api/privacypa/parties'),
+        apiClient.get<PartyRef[]>('/api/privacypa/parties'),
       ]);
       setItems(a); setUnits(u); setParties(p);
     } catch (e: any) { setError(e.message); }
@@ -156,9 +156,10 @@ export const AssetsPage: React.FC = () => {
             onChange={(id) => setForm((f) => ({ ...f, owner_unit_id: id }))}
             onUnitAdded={() => apiClient.get<Unit[]>('/api/privacypa/organizational-units').then(setUnits).catch(() => undefined)}
           />
-          <SinglePick
-            label={t('assets.supplier')} items={parties.map((p) => ({ id: p.id, label: p.legal_name }))}
+          <PartySelect
+            label={t('assets.supplier')} parties={parties} defaultType="SUPPLIER"
             value={form.supplier_id} onChange={(id) => setForm((f) => ({ ...f, supplier_id: id }))}
+            onPartyAdded={(p) => setParties((list) => [...list, p])}
           />
           <Typography variant="subtitle2" sx={{ mt: 1 }}>{t('assets.data_owner')}</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ mt: -1.5 }}>{t('assets.data_owner_hint')}</Typography>
