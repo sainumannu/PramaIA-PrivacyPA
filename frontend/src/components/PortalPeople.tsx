@@ -63,13 +63,17 @@ export const usePortalPeople = () => {
 
 const legacyPerson = (value: string): PortalPerson => ({ id: value, name: value, email: null, active: false, units: [], legacy: true });
 const labelOf = (p: PortalPerson) => (p.email ? `${p.name} (${p.email})` : p.name);
-const detailOf = (p: PortalPerson) => (p.external ? [p.tax_id && `CF ${p.tax_id}`, p.email] : [p.email, p.units.slice(1).join(' · ')])
+// Il Portal manda il percorso dell'ufficio nell'organigramma («Area › Settore › Ufficio»): si mostra solo l'ufficio
+const unitName = (path: string) => path.split(' › ').pop() || path;
+const detailOf = (p: PortalPerson) => (p.external ? [p.tax_id && `CF ${p.tax_id}`, p.email]
+  : [p.email, p.units.slice(1).map(unitName).join(' · ')])
   .filter(Boolean).join(' — ');
 const matches = (p: PortalPerson, q: string) => [p.name, p.email || '', p.tax_id || '', ...p.units].some((s) => s.toLowerCase().includes(q));
 
 const useGroupOf = () => {
   const { t } = useTranslation('privacypa');
-  return (p: PortalPerson) => (p.external ? t('people.person.external_group') : p.units[0] || t('people.person.no_unit'));
+  return (p: PortalPerson) => (p.external ? t('people.person.external_group')
+    : p.units[0] ? unitName(p.units[0]) : t('people.person.no_unit'));
 };
 
 // Pulsante «Nuova persona esterna»: la registra nell'anagrafica dei soggetti con il codice fiscale e la sceglie.
