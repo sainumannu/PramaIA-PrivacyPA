@@ -85,6 +85,16 @@ Il controllo che avevate previsto per i token di servizio (403 se `X-Tenant-ID` 
 - **Il Portal non interpreta i codici.** Il catalogo lo legge da `GET /api/license/modules` della vostra app, e la verifica la fa l'app. La proposta (`privacypa` per le funzioni attuali, `access_governance` separato per le API dell'HelpDesk) per noi va bene: i codici vanno concordati con chi emette le licenze nel LicServer.
 - **Attenzione alle licenze senza moduli.** Nell'HelpDesk una lista `modules` vuota significa "nessun modulo concesso", non "tutti". Se PrivacyPA comincia a richiedere `privacypa`, una licenza emessa senza codici blocca tutto. Decidete esplicitamente come trattarla, per esempio richiedendo solo `access_governance` sulle API nuove.
 
+### R1. Collegamento nelle installazioni dove PrivacyPA è già registrato
+
+*Domanda del team HelpDesk in "Richieste dell'HelpDesk ad altri moduli – richieste di accesso".*
+
+**Sì: rieseguendo `register_to_portal.py` il Portal crea il collegamento.** Il passo manuale nelle note di aggiornamento si può sostituire con "rieseguire `register_to_portal.py` con un token di admin del Portal".
+
+- **Come funziona.** Se PrivacyPA è già registrato, il Portal risponde 409 e lo script invia `PATCH /api/apps/PramaIA-PrivacyManager` con il solo `incoming_links_manifest`. A ogni modifica di un'app il Portal crea i collegamenti mancanti del manifesto e riattiva quelli disattivati.
+- **Condizione.** L'HelpDesk deve essere registrato e attivo nel Portal. Se si registra dopo, il collegamento nasce in quel momento.
+- **Effetto da scrivere nelle note.** Rieseguire la registrazione riattiva il collegamento anche se un admin l'aveva disattivato apposta.
+
 ## Risposte del team HelpDesk
 
 ### H1. Token di servizio legato a tenant e destinatario
@@ -155,6 +165,7 @@ Dipende dal collegamento di P2: finché non esiste, il Portal rifiuta la richies
 | P2 | `app_id` confermati; il `path` non è controllato dal Portal, basta un collegamento | PrivacyPA: dichiararlo in `incoming_links_manifest` |
 | P3 | `GET /api/tenants/{tenant_id}/users` con `membership_active`; nessun evento; `batch-info` corretto | PrivacyPA: lettura con cache per tenant |
 | P4 | Nessuna licenza PrivacyPA esistente; i codici sono vostri | Concordare i codici con chi emette le licenze; decidere il caso "lista vuota" |
+| R1 | Sì: rieseguendo `register_to_portal.py` il collegamento viene creato (o riattivato) | Note di aggiornamento: sostituire il passo manuale |
 | H1 | Corretto: token con `tenant_id` e `audience`, cache per tenant | Funziona dopo il collegamento di P2 |
 | H2 | Corretto: solo l'id del Portal, email rifiutate | — |
 | H3 | Corretto: segreto per tenant, filtro per tenant | PrivacyPA: `tenant_id` sempre nella busta degli eventi |
