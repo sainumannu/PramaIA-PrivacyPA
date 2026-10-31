@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { getPortalUrl } from '../services/runtimeConfig';
 import {
   AppBar,
   Toolbar,
@@ -88,7 +89,7 @@ interface NavItem {
 
 export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle }) => {
   const user = authGuard.getCurrentUser();
-  const PORTAL_URL = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
+  const PORTAL_URL = getPortalUrl();
   const { themeName, setThemeName } = useThemeContext();
   const { t } = useTranslation('common');
   const theme = useTheme();

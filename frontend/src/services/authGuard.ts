@@ -6,6 +6,7 @@
  */
 
 import { setLanguageFromToken } from '../i18n/i18n';
+import { getPortalUrl } from './runtimeConfig';
 
 const TOKEN_KEY = 'pramaia_token';
 const USER_KEY = 'pramaia_user';
@@ -119,8 +120,7 @@ export const authGuard = {
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    const portalUrl = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
-    window.location.href = portalUrl;
+    window.location.href = getPortalUrl();
   },
 
   /**
@@ -143,7 +143,8 @@ authGuard.init();
  */
 export function redirectToPortal(reason: string, delayMs = 5000): void {
   if (typeof window === 'undefined') return;
-  const portalUrl = process.env.REACT_APP_PORTAL_URL || 'http://localhost:3080';
+  // URL del Portal scritto dall'installer nel .env, letto da /api/config (non quello fissato nella build)
+  const portalUrl = getPortalUrl();
   if (document.getElementById('pramaia-auth-redirect-overlay')) return;
   try {
     const overlay = document.createElement('div');
