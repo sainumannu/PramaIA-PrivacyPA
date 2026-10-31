@@ -35,6 +35,8 @@ from backend.routers import privacypa_notice_router, privacypa_dataflow_router, 
 from backend.routers import privacypa_people_router, privacypa_dpo_router, privacypa_project_router, privacypa_annotation_router, privacypa_query_router, privacypa_webhook_router, privacypa_integration_router, privacypa_access_router  # noqa: E402
 from backend.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 from backend.db.database import AsyncSessionLocal  # noqa: E402
+from backend.services.privacypa_document_service import DocumentService  # noqa: E402
+from backend.services.privacypa_scanner import active_mode  # noqa: E402
 from backend.api_errors import register_error_handlers  # noqa: E402
 
 # Initialize logging FIRST
@@ -43,6 +45,17 @@ logger = get_logger(__name__)
 
 APP_NAME = os.getenv("APP_NAME", "PrivacyManager")
 PORTAL_URL = os.getenv("PORTAL_URL", "http://localhost:3080")
+
+
+async def _rescan_quarantined_documents():
+    try:
+        async with AsyncSessionLocal() as db:
+            outcome = await DocumentService(db).rescan_quarantined()
+            await db.commit()
+        if outcome:
+            logger.info(f"Documenti in quarantena rianalizzati ({active_mode()}): {outcome}")
+    except Exception as e:
+        logger.error(f"Rianalisi dei documenti in quarantena non riuscita: {e}")
 
 
 @asynccontextmanager
@@ -91,8 +104,16 @@ async def lifespan(app: FastAPI):
     if os.getenv("WEBHOOK_WORKER", "true").strip().lower() not in ("0", "false", "no"):
         webhook_task = asyncio.create_task(run_worker(AsyncSessionLocal, webhook_stop, float(os.getenv("WEBHOOK_INTERVAL_SECONDS", "5"))))
 
+    # Documenti caricati quando mancava lo scanner antimalware: si rianalizzano appena ce n'è uno
+    rescan_task = None
+    if active_mode() != "none":
+        rescan_task = asyncio.create_task(_rescan_quarantined_documents())
+
     logger.info(f"{APP_NAME} ready")
     yield
+
+    if rescan_task is not None and not rescan_task.done():
+        rescan_task.cancel()
 
     webhook_stop.set()
     if webhook_task is not None:

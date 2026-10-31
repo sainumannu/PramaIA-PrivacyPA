@@ -263,12 +263,33 @@ class DocumentService:
         version.scan_status = status.value
         version.scan_detail = detail
         version.scanned_at = datetime.utcnow() if status != ScanStatus.QUARANTINED else None
+        if status == ScanStatus.INFECTED and doc.current_version_id == version.id:
+            # una versione infetta non resta corrente: torna la più recente non infetta, se c'è
+            others = sorted((v for v in doc.versions if v.id != version.id and v.scan_status != ScanStatus.INFECTED.value),
+                            key=lambda v: v.version_no)
+            doc.current_version_id = others[-1].id if others else None
         await self.db.flush()
         await self.audit.log(
             tenant_id, "document", "rescan_version", entity_id=doc.id, actor_user_id=actor,
             old_values={"scan_status": old_status}, new_values={"scan_status": status.value, "version_id": version.id},
         )
         return version
+
+    async def rescan_quarantined(self, actor: str = "system") -> dict[str, int]:
+        """Rianalizza, in tutti gli enti, le versioni rimaste in quarantena perché mancava lo scanner."""
+        rows = (await self.db.execute(
+            select(Document.tenant_id, Document.id, DocumentVersion.id)
+            .join(DocumentVersion, DocumentVersion.document_id == Document.id)
+            .where(DocumentVersion.scan_status == ScanStatus.QUARANTINED.value)
+        )).all()
+        outcome: dict[str, int] = {}
+        for tenant_id, document_id, version_id in rows:
+            try:
+                version = await self.rescan_version(tenant_id, document_id, version_id, actor)
+                outcome[version.scan_status] = outcome.get(version.scan_status, 0) + 1
+            except ValueError:
+                outcome["MISSING"] = outcome.get("MISSING", 0) + 1
+        return outcome
 
     def resolve_path(self, version: DocumentVersion) -> Path:
         return _safe_path(version.storage_key)

@@ -7,7 +7,8 @@ import zipfile
 import pytest
 
 from backend.models.privacypa_identity import PrivacyRoleCode as R
-from backend.services.privacypa_document_service import MAX_BYTES, sanitize_filename
+from backend.services import privacypa_scanner as scanner
+from backend.services.privacypa_document_service import MAX_BYTES, DocumentService, sanitize_filename
 from backend.tests.conftest import TA, _h
 
 PDF = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
@@ -138,7 +139,7 @@ async def test_download_blocked_until_clean_and_rescan_requires_role(env, monkey
     who = _h(TA, "mgr")
     doc_id = await _new_doc(c, who)
 
-    monkeypatch.delenv("DOCUMENT_SCAN_MODE")  # nessuno scanner
+    monkeypatch.setenv("DOCUMENT_SCAN_MODE", "none")  # nessuno scanner
     v = (await _upload(c, who, doc_id, "a.txt", b"ciao")).json()
     assert v["scan_status"] == "QUARANTINED"
     r = await c.get(f"/api/privacypa/documents/{doc_id}/file", headers=who)
@@ -214,3 +215,119 @@ async def test_clamav_clean_and_unreachable(env, monkeypatch):
     v = (await _upload(c, who, doc_id, "b.txt", b"ok2")).json()
     assert v["scan_status"] == "SCAN_FAILED"
     assert (await c.get(f"/api/privacypa/documents/{doc_id}/file", headers=who)).status_code == 409
+
+
+# ---------------------------------------------------------------- antivirus di Windows (AMSI simulato)
+
+def _fake_amsi(monkeypatch, hr=0):
+    """AMSI che segnala come malware ogni contenuto con la parola MALWARE; registra i nomi analizzati."""
+    seen = []
+
+    def scan(items):
+        for name, data in items:
+            seen.append(name)
+            if hr:
+                return hr, 0, name
+            if data and b"MALWARE" in data:
+                return 0, 32768, name
+        return 0, 0, ""
+
+    monkeypatch.setattr(scanner, "_amsi_scan", scan)
+    monkeypatch.setenv("DOCUMENT_SCAN_MODE", "windows")
+    return seen
+
+
+def _docx_with(name: str, data: bytes) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:   # compresso come un vero .docx
+        zf.writestr("[Content_Types].xml", "<Types/>")
+        zf.writestr("word/document.xml", "<w:document/>")
+        zf.writestr(name, data)
+    return buf.getvalue()
+
+
+def test_auto_mode_follows_registered_antivirus(monkeypatch):
+    monkeypatch.delenv("DOCUMENT_SCAN_MODE", raising=False)
+    monkeypatch.setattr(scanner, "amsi_providers", lambda: [])
+    assert scanner.active_mode() == "none"
+    monkeypatch.setattr(scanner, "amsi_providers", lambda: ["{FB904E4E-D2C7-4C8D-8492-B620BB9896B1}"])
+    assert scanner.active_mode() == "windows"
+    monkeypatch.setenv("DOCUMENT_SCAN_MODE", "none")
+    assert scanner.active_mode() == "none"
+    monkeypatch.setenv("DOCUMENT_SCAN_MODE", "sconosciuta")
+    assert scanner.active_mode() == "none"
+
+
+@pytest.mark.asyncio
+async def test_windows_scans_document_and_archive_members(env, monkeypatch):
+    c = env["client"]
+    await env["grant"](TA, "mgr", R.PRIVACY_MANAGER)
+    who = _h(TA, "mgr")
+    doc_id = await _new_doc(c, who)
+    seen = _fake_amsi(monkeypatch)
+
+    v = (await _upload(c, who, doc_id, "a.pdf", PDF)).json()
+    assert v["scan_status"] == "CLEAN" and "nessuna minaccia" in v["scan_detail"]
+    assert (await c.get(f"/api/privacypa/documents/{doc_id}/file", headers=who)).content == PDF
+
+    # il .docx è un archivio: si analizza anche ogni file contenuto, con il suo nome
+    seen.clear()
+    bad = (await _upload(c, who, doc_id, "b.docx", _docx_with("word/vbaProject.bin", b"MALWARE" * 50))).json()
+    assert bad["scan_status"] == "INFECTED" and "word/vbaProject.bin" in bad["scan_detail"]
+    assert seen[0] == "documento" and "word/document.xml" in seen
+    doc = (await c.get(f"/api/privacypa/documents/{doc_id}", headers=who)).json()
+    assert doc["current_version_id"] == v["id"]
+
+    _fake_amsi(monkeypatch, hr=0x80070005)
+    v = (await _upload(c, who, doc_id, "c.pdf", PDF)).json()
+    assert v["scan_status"] == "SCAN_FAILED" and "0x80070005" in v["scan_detail"]
+
+
+def test_windows_realtime_protection_blocking_the_file_means_infected(monkeypatch):
+    _fake_amsi(monkeypatch)
+    real_open = open
+
+    def blocked(path, mode="r", *args, **kwargs):
+        if "privacypa-scan-" in str(path) and "r" in mode:
+            raise OSError(22, "Invalid argument")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(scanner, "open", blocked, raising=False)
+    status, detail = scanner._scan_windows(PDF)
+    assert status == scanner.ScanStatus.INFECTED and "tempo reale" in detail
+
+
+def test_windows_unreadable_archive_is_not_clean(monkeypatch):
+    _fake_amsi(monkeypatch)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("a.txt", "ciao")
+    data = buf.getvalue().replace(b"ciao", b"ciaX")   # CRC errato
+    status, detail = scanner._scan_windows(data)
+    assert status == scanner.ScanStatus.SCAN_FAILED and "archivio" in detail
+
+
+@pytest.mark.asyncio
+async def test_quarantined_documents_are_rescanned_when_a_scanner_appears(env, monkeypatch):
+    c = env["client"]
+    await env["grant"](TA, "mgr", R.PRIVACY_MANAGER)
+    who = _h(TA, "mgr")
+    good_doc, bad_doc = await _new_doc(c, who), await _new_doc(c, who)
+    clean = (await _upload(c, who, bad_doc, "v1.pdf", PDF)).json()        # scanner disabled: CLEAN
+
+    monkeypatch.setenv("DOCUMENT_SCAN_MODE", "none")
+    waiting = (await _upload(c, who, good_doc, "a.pdf", PDF)).json()
+    infected = (await _upload(c, who, bad_doc, "v2.txt", b"MALWARE")).json()
+    assert waiting["scan_status"] == infected["scan_status"] == "QUARANTINED"
+    assert (await c.get(f"/api/privacypa/documents/{good_doc}/file", headers=who)).status_code == 409
+
+    _fake_amsi(monkeypatch)
+    async with env["maker"]() as db:
+        outcome = await DocumentService(db).rescan_quarantined()
+        await db.commit()
+    assert outcome == {"CLEAN": 1, "INFECTED": 1}
+
+    assert (await c.get(f"/api/privacypa/documents/{good_doc}/file", headers=who)).content == PDF
+    # la versione risultata infetta non resta corrente: torna quella pulita
+    doc = (await c.get(f"/api/privacypa/documents/{bad_doc}", headers=who)).json()
+    assert doc["current_version_id"] == clean["id"]
