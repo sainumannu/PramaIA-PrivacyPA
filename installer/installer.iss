@@ -11,7 +11,7 @@
 ; ============================================================================
 
 #define MyAppName      "PramaIA-PrivacyManager"
-#define MyAppVersion "1.0.8"
+#define MyAppVersion "1.0.9"
 #define MyAppPublisher "PramaIA Platform"
 #define MyAppURL       "https://pramaia.ai"
 #define MyAppExeName   "PramaIA-PrivacyManager.exe"
@@ -485,25 +485,114 @@ begin
   end;
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+// Esegue un comando con cmd.exe e restituisce il suo codice di uscita (-1 se non parte).
+function RunHidden(Command: String): Integer;
+begin
+  if not Exec(ExpandConstant('{cmd}'), '/C ' + Command, '', SW_HIDE, ewWaitUntilTerminated, Result) then
+    Result := -1;
+end;
+
+// find.exe di Windows per percorso completo: nel PATH potrebbe esserci un altro find (Git, Cygwin)
+function FindExe(): String;
+begin
+  Result := '"' + ExpandConstant('{sys}ind.exe') + '"';
+end;
+
+function ServiceExists(): Boolean;
+begin
+  Result := RunHidden('sc.exe query {#MyServiceName}') = 0;
+end;
+
+function ServiceStopped(): Boolean;
+begin
+  Result := RunHidden('sc.exe query {#MyServiceName} | ' + FindExe() + ' "STOPPED"') = 0;
+end;
+
+function AppProcessRunning(): Boolean;
+begin
+  // In formato CSV il nome non e' troncato a 25 caratteri come nella tabella
+  Result := RunHidden('tasklist /FI "IMAGENAME eq {#MyAppExeName}" /FO CSV /NH | ' + FindExe() + ' /I "{#MyAppExeName}"') = 0;
+end;
+
+// Un file e' libero se si apre in scrittura esclusiva (un eseguibile in uso si puo' rinominare, ma non aprire cosi'); assente = libero.
+function FileIsFree(Path: String): Boolean;
 var
-  ResultCode: Integer;
+  Stream: TFileStream;
+begin
+  Result := True;
+  if not FileExists(Path) then
+    Exit;
+  try
+    Stream := TFileStream.Create(Path, fmOpenReadWrite or fmShareExclusive);
+    Stream.Free;
+  except
+    Result := False;
+  end;
+end;
+
+function AppFilesFree(): Boolean;
+var
+  AppDir: String;
+begin
+  AppDir := ExpandConstant('{app}\');
+  Result := FileIsFree(AppDir + '{#MyAppExeName}') and FileIsFree(AppDir + 'nssm.exe');
+end;
+
+// Ferma servizio e processi PRIMA della copia dei file, e aspetta che lo siano davvero:
+// sc stop non attende, e se si uccide il processo con il servizio ancora attivo NSSM lo fa ripartire.
+function StopAppBeforeCopy(): String;
+var
+  I: Integer;
 begin
   Result := '';
+  if ServiceExists() then
+  begin
+    RunHidden('sc.exe stop {#MyServiceName}');
+    for I := 1 to 120 do          // fino a 60 secondi
+    begin
+      if ServiceStopped() then
+        Break;
+      Sleep(500);
+    end;
+    if not ServiceStopped() then
+    begin
+      // Servizio bloccato in arresto: si chiude il processo di NSSM di questo servizio
+      RunHidden('taskkill /F /FI "SERVICES eq {#MyServiceName}"');
+      Sleep(2000);
+    end;
+  end;
+
+  // Processi dell'app avviati a mano (start-service.cmd) o rimasti appesi
+  for I := 1 to 30 do             // fino a 15 secondi
+  begin
+    if not AppProcessRunning() then
+      Break;
+    RunHidden('taskkill /F /T /IM {#MyAppExeName}');
+    Sleep(500);
+  end;
+
+  // Windows rilascia i file con qualche istante di ritardo
+  for I := 1 to 40 do             // fino a 20 secondi
+  begin
+    if AppFilesFree() then
+      Exit;
+    Sleep(500);
+  end;
+  Result := 'Non riesco a fermare {#MyAppName}: i suoi file sono ancora in uso.' + #13#10 + #13#10 +
+            'Ferma il servizio "{#MyServiceName}" (Servizi di Windows, oppure "sc stop {#MyServiceName}" da amministratore), ' +
+            'chiudi eventuali finestre del programma e riavvia l''installazione.';
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
   NeedsRestart := False;
 
-  { 1) Stop Windows service if present }
-  Exec('sc.exe', 'stop {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(1500);
+  { 1) Servizio e processi fermi e file liberi, altrimenti ci si ferma qui con un messaggio chiaro }
+  Result := StopAppBeforeCopy();
+  if Result <> '' then
+    Exit;
 
-  { 2) Kill residual app processes that hold file locks }
-  Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(500);
-
-  { 3) Brief wait for Windows to release handles }
-  Sleep(1000);
-
-  { 4) Nuova installazione: dati esistenti spostati in backups\ (a servizio fermo, prima della copia) }
+  { 2) Nuova installazione: dati esistenti spostati in backups\ (a servizio fermo, prima della copia) }
   if WantsFreshData() then
     Result := MoveExistingData();
 end;
@@ -524,6 +613,7 @@ begin
   if MemoTasksInfo <> '' then
     Result := Result + MemoTasksInfo + NewLine;
 end;
+
 
 
 
