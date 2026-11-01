@@ -129,6 +129,8 @@ export const NoticesPage: React.FC = () => {
   const base = detail ? `/api/privacypa/notices/${detail.id}` : '';
   const version = detail?.row_version;
   const editable = detail && ['DRAFT'].includes(detail.status) && can('notice.edit');
+  // In approvazione i collegamenti sono bloccati come il testo: riportare in bozza per cambiarli.
+  const linksEditable = !!detail && ['DRAFT', 'APPROVED'].includes(detail.status) && can('notice.edit');
   const working = detail?.versions?.find((v) => !v.is_approved);
 
   const openDiff = async (oldV: Version, newV: Version) => {
@@ -267,10 +269,10 @@ export const NoticesPage: React.FC = () => {
 
               <MultiPick
                 label={t('notices.processings')} value={links} onChange={setLinks}
-                disabled={detail.status === 'RETIRED' || !can('notice.edit')}
+                disabled={!linksEditable}
                 items={processings.map((p) => ({ id: p.id, label: `${p.code} — ${p.title}` }))}
               />
-              {can('notice.edit') && detail.status !== 'RETIRED' && (
+              {linksEditable && (
                 <Box>
                   <Button onClick={() => run(() => apiClient.put<Notice>(`${base}/processing-links`, { processing_activity_ids: links }, { version }), t('notices.links_saved'))}>{t('notices.save_links')}</Button>
                 </Box>

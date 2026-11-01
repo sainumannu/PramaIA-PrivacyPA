@@ -128,6 +128,8 @@ async def test_submission_requires_a_complete_version_and_creates_an_approval(en
     v = (await _get(env, n["id"]))["row_version"]
     blocked = await env["client"].patch(f"{NOTICES}/{n['id']}/versions/{vid}", json={"content": "Altro"}, headers=ifm(v, w["op"]))
     assert blocked.status_code == 400 and "in approvazione" in blocked.json()["detail"]
+    links = await _link(env, n["id"], [env["ids"]["proc_a"]], w["op"])                 # i trattamenti collegati, come il testo
+    assert links.status_code == 400 and "in approvazione" in links.json()["detail"]
     assert (await _status(env, n["id"], "DRAFT", w["op"])).status_code == 200      # ritiro della richiesta
     assert (await env["client"].get(APPR, params={"state": "PENDING"}, headers=w["dpo"])).json() == []
 

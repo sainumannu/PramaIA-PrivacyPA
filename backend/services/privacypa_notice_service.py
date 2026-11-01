@@ -234,7 +234,8 @@ class NoticeService:
 
     # ------------------------------------------------------------ collegamenti
     async def set_links(self, tenant_id: str, notice_id: str, actor: str, processing_ids: list[str]) -> PrivacyNotice:
-        notice = await self._editable(tenant_id, notice_id, allow_review=True)
+        # I trattamenti collegati fanno parte di ciò che si approva: cambiarli in revisione renderebbe stantia la richiesta.
+        notice = await self._editable(tenant_id, notice_id, allow_review=False)
         wanted = list(dict.fromkeys(processing_ids))
         if wanted:
             found = set((await self.db.execute(select(ProcessingActivity.id).where(
