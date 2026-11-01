@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from backend.models.privacypa_annotations import CustomFieldDefinition, CustomFieldValue
 from backend.models.privacypa_external_events import ExternalEvent, ExternalEventStatus
 from backend.models.privacypa_assessments import DpiaStatus, InternationalTransfer, TransferLink
-from backend.models.privacypa_assets import Asset, AssetLifecycle, ProcessingAsset
+from backend.models.privacypa_assets import Asset, AssetLifecycle, AssetType, ProcessingAsset
 from backend.models.privacypa_audit import AuditLog
 from backend.models.privacypa_catalog import DataCategoryCatalog, GdprDataClass
 from backend.models.privacypa_compliance import (
@@ -52,7 +52,9 @@ from backend.models.privacypa_people import (
 from backend.models.privacypa_processing import ProcessingActivity, ProcessingDataCategory, ProcessingStatus
 from backend.models.privacypa_projects import Project, ProjectStatus
 from backend.models.privacypa_retention import RetentionRule
-from backend.models.privacypa_risk import RiskAssessment
+from backend.models.privacypa_risk import (
+    ImplementationStatus, MeasureCategory, MeasureImplementation, RiskAssessment, SecurityMeasure,
+)
 from backend.models.privacypa_rules import Severity
 from backend.models.privacypa_tasks import PrivacyTask, TaskPriority, TaskSourceType, TaskStatus
 from backend.services.privacypa_annotation_service import load_refs
@@ -378,6 +380,36 @@ async def _asset_owner_missing(ctx: Context, params: dict) -> list[Hit]:
         for a in await ctx.assets()
         if a.owner_unit_id is None and a.lifecycle_status != AssetLifecycle.DISMISSED
     ]
+
+
+_PAPER_MISSING = {
+    "location": "L'archivio cartaceo {asset} non indica dove si trova",
+    "custodian": "L'archivio cartaceo {asset} non ha un custode (chi ne tiene le chiavi) né un custode esterno",
+    "measures": "L'archivio cartaceo {asset} non ha misure fisiche attuate",
+}
+
+
+async def _paper_archive_incomplete(ctx: Context, params: dict) -> list[Hit]:
+    archives = [a for a in await ctx.assets()
+                if a.asset_type == AssetType.PAPER_ARCHIVE and a.lifecycle_status != AssetLifecycle.DISMISSED]
+    if not archives:
+        return []
+    protected = set((await ctx.db.execute(
+        select(MeasureImplementation.entity_id).join(SecurityMeasure, SecurityMeasure.id == MeasureImplementation.measure_id).where(
+            MeasureImplementation.tenant_id == ctx.tenant_id, MeasureImplementation.entity_type == "asset",
+            SecurityMeasure.category == MeasureCategory.PHYSICAL,
+            MeasureImplementation.implementation_status.in_((ImplementationStatus.IMPLEMENTED, ImplementationStatus.PARTIAL)),
+        )
+    )).scalars().all())
+    hits = []
+    for a in archives:
+        present = {"location": a.location_site, "custodian": a.custodian_user_id or a.supplier_id, "measures": a.id in protected}
+        hits += [
+            Hit("asset", a.id, _PAPER_MISSING[m].format(asset=a.code), entity_code=a.code, subject=m,
+                params={"asset": a.code, "missing": m})
+            for m, ok in present.items() if not ok
+        ]
+    return hits
 
 
 async def _processing_owner_missing(ctx: Context, params: dict) -> list[Hit]:
@@ -882,8 +914,9 @@ RULES: tuple[RuleSpec, ...] = (
              "Responsabile o contitolare con incarico fino a una data che cade entro {horizon_days} giorni.", _M,
              _appointment_expiring, {"horizon_days": 60}),
     RuleSpec("PARTY_DATA_INCOMPLETE", "Soggetto esterno da completare",
-             "Un soggetto esterno non è identificabile senza ambiguità oppure il suo incarico non ha una durata.",
-             "Soggetto non in archivio senza codice fiscale valido (all'estero, senza identificativo fiscale), oppure "
+             "Un soggetto esterno ha identificativi mancanti o non validi oppure il suo incarico non ha una durata.",
+             "Soggetto non in archivio con codice fiscale o partita IVA non validi, persona fisica senza codice fiscale, "
+             "oppure "
              "responsabile o contitolare senza durata dell'incarico.", _L, _party_data_incomplete),
     RuleSpec("CONTRACT_EXPIRED", "Contratto scaduto", "Un contratto attivo ha superato la data di fine.",
              "Contratto attivo con data di fine precedente a oggi.", _H, _contract_expired),
@@ -903,6 +936,10 @@ RULES: tuple[RuleSpec, ...] = (
              _risk_assessment_review),
     RuleSpec("ASSET_OWNER_MISSING", "Sistema senza struttura responsabile", "Ogni sistema deve avere una struttura responsabile (§167).",
              "Sistema non dismesso senza struttura responsabile.", _L, _asset_owner_missing),
+    RuleSpec("PAPER_ARCHIVE_INCOMPLETE", "Archivio cartaceo da completare",
+             "Un archivio cartaceo deve dire dove si trova, chi lo custodisce e con quali misure fisiche è protetto.",
+             "Archivio cartaceo non dismesso senza sede, oppure senza custode e senza custode esterno, oppure senza "
+             "misure fisiche attuate.", _L, _paper_archive_incomplete),
     RuleSpec("PROCESSING_OWNER_MISSING", "Trattamento senza responsabile interno", "Ogni trattamento attivo deve avere un responsabile (§167).",
              "Trattamento approvato/attivo senza responsabile interno.", _L, _processing_owner_missing),
     RuleSpec("PROCESSING_REVIEW_DUE", "Revisione del trattamento scaduta", "La data di prossima revisione è passata (§168).",

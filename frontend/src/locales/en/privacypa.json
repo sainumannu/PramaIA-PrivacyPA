@@ -232,11 +232,44 @@
     "data_owner_hint": "Who authorizes access: HelpDesk suggests it in the authorization details of access requests.",
     "data_owner_name": "Name",
     "data_owner_role": "Role (e.g. Head of Registry Office)",
-    "data_owner_user_id": "Person in the Portal (optional)"
+    "data_owner_user_id": "Person in the Portal (optional)",
+    "paper": {
+      "title": "Paper archive",
+      "hint": "A paper archive holds personal data too: where it is, who keeps it and how it is protected.",
+      "site": "Site (building and address)",
+      "room": "Room (floor, room)",
+      "phase": "Archive phase",
+      "not_set": "Not set",
+      "phases": {
+        "CURRENT": "Current",
+        "DEPOSIT": "Records centre",
+        "HISTORICAL": "Historical"
+      },
+      "phase_hint": {
+        "CURRENT": "Open files",
+        "DEPOSIT": "Closed files still consulted",
+        "HISTORICAL": "Matters closed more than 40 years ago, kept permanently"
+      },
+      "extent": "Extent",
+      "extent_hint": "E.g. 120 binders, 18 linear metres",
+      "custodian": "Custodian",
+      "custodian_hint": "Who holds the keys and authorizes consultations.",
+      "external_custodian": "External custodian (records storage company)",
+      "risks": "Room hazards",
+      "risk": {
+        "FIRE": "Fire",
+        "FLOOD": "Flooding",
+        "HUMIDITY": "Humidity",
+        "PESTS": "Rodents and insects",
+        "INTRUSION": "Intrusion or theft"
+      },
+      "measures": "Physical measures in place",
+      "measures_hint": "Tick those in use. Other physical measures are added to the measure catalog (Risks)."
+    }
   },
   "parties": {
     "title": "External parties",
-    "subtitle": "Single registry of external bodies, companies and individuals, identified by tax code. Processors and joint controllers have a fixed-term appointment: when it ends, or if it ends early, they move to the archive. The art. 28 agreement is a document checklist, not a compliance score.",
+    "subtitle": "Single registry of external bodies, companies and individuals. Individuals are identified by tax code; for bodies and companies tax code and VAT number are optional. Processors and joint controllers have a fixed-term appointment: when it ends, or if it ends early, they move to the archive. The art. 28 agreement is a document checklist, not a compliance score.",
     "tabs": {
       "registry": "Registry",
       "agreements": "Art. 28 agreements",
@@ -744,7 +777,10 @@
       "RETENTION_MISSING": "Processing {{processing}} has no retention rules",
       "PROCESSOR_CEASED_IN_USE": "Processing {{processing}} uses {{party}}, whose appointment ended on {{date}}",
       "APPOINTMENT_EXPIRING": "The appointment of {{party}} expires on {{date}}",
-      "PARTY_DATA_INCOMPLETE": "{{party}} has no valid tax code (or, abroad, a tax identifier)",
+      "PARTY_DATA_INCOMPLETE": "{{party}}: tax code or VAT number missing or invalid",
+      "PAPER_ARCHIVE_INCOMPLETE_location": "Paper archive {{asset}} does not say where it is",
+      "PAPER_ARCHIVE_INCOMPLETE_custodian": "Paper archive {{asset}} has no custodian or external custodian",
+      "PAPER_ARCHIVE_INCOMPLETE_measures": "Paper archive {{asset}} has no physical measures in place",
       "PARTY_APPOINTMENT_MISSING": "The appointment of {{party}} has no duration"
     }
   },

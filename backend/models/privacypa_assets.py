@@ -3,7 +3,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint, Enum as SAEnum
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint, Enum as SAEnum
 from sqlalchemy import Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,22 @@ class AssetLifecycle(str, enum.Enum):
     LEGACY = "LEGACY"
     DISMISSION = "DISMISSION"
     DISMISSED = "DISMISSED"
+
+
+class ArchivePhase(str, enum.Enum):
+    """Fase dell'archivio cartaceo (DPR 445/2000): corrente, di deposito, storico."""
+    CURRENT = "CURRENT"
+    DEPOSIT = "DEPOSIT"
+    HISTORICAL = "HISTORICAL"
+
+
+class EnvironmentalRisk(str, enum.Enum):
+    """Rischi del locale che ospita un archivio cartaceo."""
+    FIRE = "FIRE"
+    FLOOD = "FLOOD"
+    HUMIDITY = "HUMIDITY"
+    PESTS = "PESTS"
+    INTRUSION = "INTRUSION"
 
 
 class AssetRole(str, enum.Enum):
@@ -100,6 +116,14 @@ class Asset(Base):
     data_owner_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_owner_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_owner_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Solo per gli archivi cartacei: dove sono, in che fase, quanto sono grandi, chi ne custodisce le chiavi e a quali
+    # rischi è esposto il locale. Le misure (armadi chiusi, antincendio...) sono misure fisiche collegate all'asset.
+    location_site: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location_room: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    archive_phase: Mapped[ArchivePhase | None] = mapped_column(SAEnum(ArchivePhase, native_enum=False, length=20), nullable=True)
+    archive_extent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    custodian_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    environmental_risks: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -134,6 +158,12 @@ class Asset(Base):
             "data_owner_name": self.data_owner_name,
             "data_owner_role": self.data_owner_role,
             "data_owner_user_id": self.data_owner_user_id,
+            "location_site": self.location_site,
+            "location_room": self.location_room,
+            "archive_phase": self.archive_phase.value if self.archive_phase else None,
+            "archive_extent": self.archive_extent,
+            "custodian_user_id": self.custodian_user_id,
+            "environmental_risks": self.environmental_risks or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

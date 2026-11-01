@@ -232,11 +232,44 @@
     "data_owner_hint": "Chi autorizza gli accessi: l'HelpDesk lo propone negli estremi delle richieste di accesso.",
     "data_owner_name": "Nome",
     "data_owner_role": "Ruolo (es. Dirigente Servizi Demografici)",
-    "data_owner_user_id": "Persona nel Portal (facoltativo)"
+    "data_owner_user_id": "Persona nel Portal (facoltativo)",
+    "paper": {
+      "title": "Archivio cartaceo",
+      "hint": "Anche un archivio di carta contiene dati personali: dove si trova, chi lo custodisce e come è protetto.",
+      "site": "Sede (edificio e indirizzo)",
+      "room": "Locale (piano, stanza)",
+      "phase": "Fase dell'archivio",
+      "not_set": "Non indicata",
+      "phases": {
+        "CURRENT": "Corrente",
+        "DEPOSIT": "Di deposito",
+        "HISTORICAL": "Storico"
+      },
+      "phase_hint": {
+        "CURRENT": "Pratiche in corso",
+        "DEPOSIT": "Pratiche chiuse, ancora consultate",
+        "HISTORICAL": "Affari esauriti da oltre 40 anni, conservazione permanente"
+      },
+      "extent": "Consistenza",
+      "extent_hint": "Es. 120 faldoni, 18 metri lineari",
+      "custodian": "Custode",
+      "custodian_hint": "Chi tiene le chiavi e autorizza le consultazioni.",
+      "external_custodian": "Custode esterno (ditta di archiviazione)",
+      "risks": "Rischi del locale",
+      "risk": {
+        "FIRE": "Incendio",
+        "FLOOD": "Allagamento",
+        "HUMIDITY": "Umidità",
+        "PESTS": "Roditori e insetti",
+        "INTRUSION": "Intrusione o furto"
+      },
+      "measures": "Misure fisiche attuate",
+      "measures_hint": "Spunta quelle in uso. Altre misure fisiche si aggiungono al catalogo delle misure (Rischi)."
+    }
   },
   "parties": {
     "title": "Soggetti esterni",
-    "subtitle": "Anagrafica unica di enti, società e persone fisiche esterne, identificati dal codice fiscale. Responsabili e contitolari hanno un incarico a termine: alla scadenza, o se cessano prima, passano in archivio. L'atto art. 28 è una checklist documentale, non un punteggio di conformità.",
+    "subtitle": "Anagrafica unica di enti, società e persone fisiche esterne. Le persone fisiche si identificano con il codice fiscale; per enti e società codice fiscale e partita IVA sono facoltativi. Responsabili e contitolari hanno un incarico a termine: alla scadenza, o se cessano prima, passano in archivio. L'atto art. 28 è una checklist documentale, non un punteggio di conformità.",
     "tabs": {
       "registry": "Anagrafica",
       "agreements": "Atti art. 28",
@@ -744,7 +777,10 @@
       "RETENTION_MISSING": "Il trattamento {{processing}} non ha regole di conservazione",
       "PROCESSOR_CEASED_IN_USE": "Il trattamento {{processing}} usa {{party}}, il cui incarico è cessato il {{date}}",
       "APPOINTMENT_EXPIRING": "L'incarico di {{party}} scade il {{date}}",
-      "PARTY_DATA_INCOMPLETE": "{{party}} non ha un codice fiscale valido (o, all'estero, un identificativo fiscale)",
+      "PARTY_DATA_INCOMPLETE": "{{party}}: codice fiscale o partita IVA mancanti o non validi",
+      "PAPER_ARCHIVE_INCOMPLETE_location": "L'archivio cartaceo {{asset}} non indica dove si trova",
+      "PAPER_ARCHIVE_INCOMPLETE_custodian": "L'archivio cartaceo {{asset}} non ha un custode né un custode esterno",
+      "PAPER_ARCHIVE_INCOMPLETE_measures": "L'archivio cartaceo {{asset}} non ha misure fisiche attuate",
       "PARTY_APPOINTMENT_MISSING": "L'incarico di {{party}} non ha una durata"
     }
   },

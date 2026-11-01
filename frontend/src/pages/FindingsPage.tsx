@@ -210,7 +210,8 @@ export const FindingsPage: React.FC = () => {
                       <TableCell><Chip size="small" color={COLORS[f.severity]} label={t(`findings.sev.${f.severity}`)} /></TableCell>
                       <TableCell>
                         {t(`findings.codes.${f.code === 'NOTICE_REVIEW_REQUIRED' && !f.params.processing ? 'NOTICE_REVIEW_CONTROLLER'
-                          : f.code === 'PARTY_DATA_INCOMPLETE' && f.params.missing === 'appointment' ? 'PARTY_APPOINTMENT_MISSING' : f.code}`, f.params) || f.message}
+                          : f.code === 'PARTY_DATA_INCOMPLETE' && f.params.missing === 'appointment' ? 'PARTY_APPOINTMENT_MISSING'
+                            : f.code === 'PAPER_ARCHIVE_INCOMPLETE' ? `PAPER_ARCHIVE_INCOMPLETE_${f.params.missing}` : f.code}`, f.params) || f.message}
                         {f.resolution_notes && <Typography variant="caption" display="block" color="text.secondary">{f.resolution_notes}</Typography>}
                       </TableCell>
                       <TableCell>{f.due_date || '—'}</TableCell>

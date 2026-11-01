@@ -3,12 +3,19 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models.privacypa_assets import Asset, AssetRole, ProcessingAsset
+from backend.models.privacypa_assets import Asset, AssetRole, AssetType, ProcessingAsset
+from backend.models.privacypa_risk import ImplementationStatus, MeasureCategory, MeasureImplementation, SecurityMeasure
 from backend.services.privacypa_audit_service import AuditService
 from backend.services.privacypa_codes import next_prefixed_code
-from backend.services.privacypa_refs import ensure_exists
+from backend.services.privacypa_refs import InvalidReference, ensure_exists
 
-_EDITABLE = {
+# Campi che hanno senso solo per un archivio cartaceo: per gli altri tipi si azzerano.
+_PAPER_FIELDS = {
+    "location_site", "location_room", "archive_phase", "archive_extent", "custodian_user_id", "environmental_risks",
+}
+# Stati in cui una misura conta come attuata (spuntata nella scheda)
+_DONE = (ImplementationStatus.IMPLEMENTED, ImplementationStatus.PARTIAL)
+_EDITABLE = _PAPER_FIELDS | {
     "name", "asset_type", "description", "supplier_id", "owner_unit_id", "hosting_type",
     "cloud_service", "hosting_country", "data_location_notes", "authentication_type",
     "mfa_supported", "logging_supported", "encryption_at_rest", "encryption_in_transit",
@@ -41,7 +48,75 @@ class AssetService:
         await ensure_exists(self.db, tenant_id, "party", fields.get("supplier_id"))
         await ensure_exists(self.db, tenant_id, "unit", fields.get("owner_unit_id"))
 
+    @staticmethod
+    def _clean(fields: dict) -> dict:
+        if fields.get("asset_type", AssetType.APPLICATION) != AssetType.PAPER_ARCHIVE:
+            fields.update({k: None for k in _PAPER_FIELDS})
+        elif fields.get("environmental_risks") is not None:
+            fields["environmental_risks"] = sorted({getattr(r, "value", r) for r in fields["environmental_risks"]})
+        for k in ("location_site", "location_room", "archive_extent", "custodian_user_id"):
+            if isinstance(fields.get(k), str):
+                fields[k] = fields[k].strip() or None
+        return fields
+
+    async def physical_catalog(self, tenant_id: str) -> list[SecurityMeasure]:
+        """Le misure fisiche che si possono spuntare: quelle del catalogo globale e quelle dell'ente."""
+        result = await self.db.execute(select(SecurityMeasure).where(
+            SecurityMeasure.category == MeasureCategory.PHYSICAL,
+            (SecurityMeasure.tenant_id == tenant_id) | SecurityMeasure.tenant_id.is_(None),
+        ).order_by(SecurityMeasure.tenant_id.is_not(None), SecurityMeasure.name))
+        return list(result.scalars().all())
+
+    async def _physical_links(self, tenant_id: str, asset_ids: list[str] | None = None) -> list[MeasureImplementation]:
+        stmt = select(MeasureImplementation).join(SecurityMeasure, SecurityMeasure.id == MeasureImplementation.measure_id).where(
+            MeasureImplementation.tenant_id == tenant_id, MeasureImplementation.entity_type == "asset",
+            SecurityMeasure.category == MeasureCategory.PHYSICAL,
+        )
+        if asset_ids is not None:
+            stmt = stmt.where(MeasureImplementation.entity_id.in_(asset_ids))
+        return list((await self.db.execute(stmt)).scalars().all())
+
+    async def describe(self, tenant_id: str, assets: list[Asset]) -> list[dict]:
+        """Gli asset come li vede l'interfaccia, con le misure fisiche attuate (anche in parte)."""
+        done: dict[str, set[str]] = {}
+        for impl in await self._physical_links(tenant_id, [a.id for a in assets]):
+            if impl.implementation_status in _DONE:
+                done.setdefault(impl.entity_id, set()).add(impl.measure_id)
+        return [{**a.to_dict(), "physical_measure_ids": sorted(done.get(a.id, ()))} for a in assets]
+
+    async def _set_physical_measures(self, tenant_id: str, actor: str, asset: Asset, measure_ids: list[str] | None) -> None:
+        """Le misure fisiche spuntate risultano attuate; quelle tolte, se erano attuate, si scollegano.
+
+        Le misure pianificate o non applicabili e quelle di altre categorie (collegate dai rischi o dall'API) restano.
+        """
+        if measure_ids is None:
+            return
+        wanted = {m for m in measure_ids if m}
+        if wanted - {m.id for m in await self.physical_catalog(tenant_id)}:
+            raise InvalidReference("Misura di sicurezza fisica non trovata")
+        current = await self._physical_links(tenant_id, [asset.id])
+        before = sorted({i.measure_id for i in current if i.implementation_status in _DONE})
+        kept: set[str] = set()
+        for impl in current:
+            if impl.measure_id in wanted and impl.measure_id not in kept:
+                if impl.implementation_status not in _DONE:
+                    impl.implementation_status = ImplementationStatus.IMPLEMENTED
+                kept.add(impl.measure_id)
+            elif impl.implementation_status in _DONE or impl.measure_id in kept:
+                await self.db.delete(impl)
+        for measure_id in sorted(wanted - kept):
+            self.db.add(MeasureImplementation(
+                tenant_id=tenant_id, measure_id=measure_id, entity_type="asset", entity_id=asset.id,
+                implementation_status=ImplementationStatus.IMPLEMENTED,
+            ))
+        await self.db.flush()
+        if before != sorted(wanted):
+            await self.audit.log(tenant_id, "asset", "measures", entity_id=asset.id, actor_user_id=actor,
+                                 old_values={"physical_measure_ids": before}, new_values={"physical_measure_ids": sorted(wanted)})
+
     async def create(self, tenant_id: str, actor: str, name: str, **fields) -> Asset:
+        measure_ids = fields.pop("physical_measure_ids", None)
+        fields = self._clean(fields)
         await self._check_references(tenant_id, fields)
         asset = Asset(
             tenant_id=tenant_id,
@@ -52,6 +127,7 @@ class AssetService:
         self.db.add(asset)
         await self.db.flush()
         await self.audit.log(tenant_id, "asset", "create", entity_id=asset.id, actor_user_id=actor, new_values=asset.to_dict())
+        await self._set_physical_measures(tenant_id, actor, asset, measure_ids)
         await self.db.refresh(asset)
         return asset
 
@@ -59,7 +135,10 @@ class AssetService:
         asset = await self.get(tenant_id, asset_id)
         if not asset:
             raise ValueError("Sistema/asset non trovato")
+        measure_ids = fields.pop("physical_measure_ids", None)
+        fields = self._clean(fields)
         await self._check_references(tenant_id, fields)
+        await self._set_physical_measures(tenant_id, actor, asset, measure_ids)
         old = asset.to_dict()
         for k, v in fields.items():
             if k in _EDITABLE:

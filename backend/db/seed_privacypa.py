@@ -110,6 +110,18 @@ _SECURITY_MEASURES = [
     ("SIGNAGE", "Informativa e cartellonistica", MeasureCategory.ORGANIZATIONAL),
     ("VENDOR_DPA", "Accordo art. 28 con il fornitore", MeasureCategory.VENDOR_MANAGEMENT),
     ("INCIDENT", "Procedura di gestione incidenti", MeasureCategory.INCIDENT_MANAGEMENT),
+    # Misure fisiche: si spuntano nella scheda degli archivi cartacei
+    ("PHYS_LOCKED_CABINETS", "Armadi o cassettiere chiusi a chiave", MeasureCategory.PHYSICAL),
+    ("PHYS_RESTRICTED_ROOM", "Locale ad accesso controllato (chiave o badge)", MeasureCategory.PHYSICAL),
+    ("PHYS_KEY_CUSTODY", "Chiavi assegnate a persone indicate, con registro delle consegne", MeasureCategory.PHYSICAL),
+    ("PHYS_CONSULTATION_LOG", "Registro delle consultazioni e dei prestiti dei fascicoli", MeasureCategory.PHYSICAL),
+    ("PHYS_FIRE", "Protezione antincendio (rilevatori, estintori, armadi ignifughi)", MeasureCategory.PHYSICAL),
+    ("PHYS_FLOOD", "Protezione da allagamenti e umidità (scaffali sollevati, deumidificatori)", MeasureCategory.PHYSICAL),
+    ("PHYS_ALARM", "Allarme antintrusione o vigilanza", MeasureCategory.PHYSICAL),
+    ("PHYS_CLEAN_DESK", "Scrivania pulita: documenti riposti e chiusi a fine giornata", MeasureCategory.PHYSICAL),
+    ("PHYS_SECURE_TRANSPORT", "Trasporto dei fascicoli in contenitori chiusi", MeasureCategory.PHYSICAL),
+    ("PHYS_SHREDDING", "Distruzione con distruggidocumenti o macero certificato", MeasureCategory.PHYSICAL),
+    ("PHYS_PRINT_RELEASE", "Stampa con rilascio a badge o PIN", MeasureCategory.PHYSICAL),
 ]
 
 
