@@ -158,16 +158,26 @@ class NoticeService:
             raise NoticeError("L'informativa è in approvazione: riportarla in bozza per modificarla")
         return notice
 
-    async def soft_delete(self, tenant_id: str, notice_id: str, actor: str) -> None:
+    async def soft_delete(self, tenant_id: str, notice_id: str, actor: str, force: bool = False) -> None:
+        """
+        Elimina un'informativa in bozza mai approvata. Con `force` (solo amministratori) elimina anche quelle in
+        revisione, approvate o ritirate, ad es. create per prova, e toglie i collegamenti ai trattamenti.
+        """
         notice = await self.get(tenant_id, notice_id)
         if notice is None:
             raise NoticeError("Informativa non trovata")
-        if notice.status != NoticeStatus.DRAFT or notice.current_version_id:
-            raise NoticeError("Si può eliminare solo un'informativa mai approvata e in bozza; per le altre usare il ritiro")
+        if not force and (notice.status != NoticeStatus.DRAFT or notice.current_version_id):
+            raise NoticeError(
+                "Si può eliminare solo un'informativa mai approvata e in bozza; per le altre usare il ritiro "
+                "(o chiedere a un amministratore di eliminarla)"
+            )
+        old = {"code": notice.code, "status": notice.status.value,
+               "processing_activity_ids": sorted(l.processing_activity_id for l in notice.links)}
+        notice.links = []
         notice.deleted_at = datetime.utcnow()
         await self.db.flush()
         await self.audit.log(tenant_id, "privacy_notice", "delete", entity_id=notice.id, actor_user_id=actor,
-                             old_values={"code": notice.code})
+                             old_values=old, new_values={"forced": True} if force else None)
 
     # ------------------------------------------------------------ versioni
     async def create_version(

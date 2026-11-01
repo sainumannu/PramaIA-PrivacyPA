@@ -185,15 +185,21 @@ async def update_notice(
 @router.delete("/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notice(
     notice_id: str,
+    force: bool = False,
     tenant_id: str = Depends(require_tenant),
     user: TokenPayload = Depends(require_permission("notice.delete")),
     db: AsyncSession = Depends(get_db),
 ):
+    """Solo bozze mai approvate; con `force` un amministratore elimina un'informativa in qualsiasi stato."""
     await _load(db, tenant_id, user, notice_id, code="notice.delete")
+    actor = user.sub or user.email
+    if force:
+        await assert_permission(user, db, "notice.administer")
     try:
-        await NoticeService(db).soft_delete(tenant_id, notice_id, user.sub or user.email)
+        await NoticeService(db).soft_delete(tenant_id, notice_id, actor, force=force)
     except NoticeError as e:
         raise _bad(e)
+    await ApprovalService(db).cancel_pending(tenant_id, NOTICE, notice_id, actor)
 
 
 @router.post("/{notice_id}/versions", status_code=status.HTTP_201_CREATED)

@@ -75,7 +75,7 @@ DEFAULT_MODULES: dict[str, dict[str, tuple[R, ...]]] = {
     "asset": _module(EVERYONE, create=WRITERS, edit=WRITERS, delete=WRITERS),
     "party": _module(EVERYONE, create=WRITERS, edit=WRITERS, delete=WRITERS),
     "notice": _module(EVERYONE, create=REGISTER_WRITERS, edit=REGISTER_WRITERS, submit=REGISTER_WRITERS,
-                       delete=REGISTER_WRITERS, approve=GOVERNANCE, archive=GOVERNANCE),
+                       delete=REGISTER_WRITERS, approve=GOVERNANCE, archive=GOVERNANCE, administer=ADMINS),
     "dataflow": _module(EVERYONE, create=REGISTER_WRITERS, edit=REGISTER_WRITERS, delete=REGISTER_WRITERS),
     "legalref": _module(EVERYONE, create=REGISTER_WRITERS, edit=REGISTER_WRITERS, delete=GOVERNANCE),
     "action": _module(EVERYONE, create=WRITERS, edit=WRITERS, delete=GOVERNANCE),

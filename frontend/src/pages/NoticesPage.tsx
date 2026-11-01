@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { PramaLayout } from '../components/PramaLayout';
 import StatusNotesDialog from '../components/StatusNotesDialog';
 import { apiClient } from '../services/apiClient';
@@ -137,6 +138,21 @@ export const NoticesPage: React.FC = () => {
     try {
       const r = await apiClient.get<{ changes: DiffOp[] }>(`${base}/versions/${oldV.id}/diff/${newV.id}`);
       setDiff(r.changes);
+    } catch (err: any) { setDialogError(err.message); }
+  };
+
+  // Una bozza mai approvata la elimina chi ha il permesso; le altre (es. create per prova) solo un amministratore.
+  const plainDelete = !!detail && detail.status === 'DRAFT' && !detail.current_version_id && can('notice.delete');
+  const canDelete = plainDelete || (!!detail && can('notice.delete') && can('notice.administer'));
+  const remove = async () => {
+    if (!detail) return;
+    if (!window.confirm(t(plainDelete ? 'notices.confirm_delete' : 'notices.confirm_force_delete', { code: detail.code, title: detail.title }))) return;
+    setDialogError(null);
+    try {
+      await apiClient.delete(`${base}${plainDelete ? '' : '?force=true'}`);
+      setDetail(null);
+      setInfo(t('notices.deleted', { code: detail.code }));
+      await load();
     } catch (err: any) { setDialogError(err.message); }
   };
 
@@ -296,6 +312,7 @@ export const NoticesPage: React.FC = () => {
             <Button key={s} variant={s === 'APPROVED' ? 'contained' : 'outlined'} onClick={() => requestStatus(s)}>{t(`notices.actions.${s}`)}</Button>
           ))}
           <Box sx={{ flex: 1 }} />
+          {canDelete && <Button color="error" startIcon={<DeleteIcon />} onClick={remove}>{t('notices.delete')}</Button>}
           <Button onClick={() => setDetail(null)}>{t('notices.close')}</Button>
         </DialogActions>
       </Dialog>

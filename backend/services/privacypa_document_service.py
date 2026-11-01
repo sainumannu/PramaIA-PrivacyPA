@@ -343,7 +343,8 @@ class DocumentService:
             rows += [(kind, r, field) for r in (await self.db.execute(stmt)).scalars()]
         versions = await self.db.execute(
             select(PrivacyNoticeVersion).join(PrivacyNotice, PrivacyNotice.id == PrivacyNoticeVersion.privacy_notice_id)
-            .where(PrivacyNotice.tenant_id == tenant_id, PrivacyNoticeVersion.document_id == document_id)
+            .where(PrivacyNotice.tenant_id == tenant_id, PrivacyNotice.deleted_at.is_(None),
+                   PrivacyNoticeVersion.document_id == document_id)
         )
         rows += [("notice_version", r, "document_id") for r in versions.scalars()]
         return rows

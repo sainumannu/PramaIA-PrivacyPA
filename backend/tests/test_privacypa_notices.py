@@ -218,6 +218,26 @@ async def test_retire_delete_and_locking(env, w):
     assert (await _status(env, kept["id"], "APPROVED", w["dpo"])).status_code == 400
 
 
+@pytest.mark.asyncio
+async def test_administrator_deletes_a_notice_in_any_state(env, w):
+    c, ids = env["client"], env["ids"]
+    await env["grant"](TA, "ta", R.TENANT_ADMIN)
+    ta = _h(TA, "ta")
+    approved = (await _create(env, w["mgr"])).json()
+    assert (await _link(env, approved["id"], [ids["proc_a"]], w["mgr"])).status_code == 200
+    await _approve(env, w, approved["id"])
+    reviewing = (await _create(env, w["mgr"])).json()
+    assert (await _status(env, reviewing["id"], "IN_REVIEW", w["op"])).status_code == 200
+
+    assert (await c.delete(f"{NOTICES}/{approved['id']}", params={"force": "true"}, headers=w["mgr"])).status_code == 403
+    for n in (approved, reviewing):
+        assert (await c.delete(f"{NOTICES}/{n['id']}", params={"force": "true"}, headers=ta)).status_code == 204
+        assert (await c.get(f"{NOTICES}/{n['id']}", headers=ta)).status_code == 404
+    assert (await c.get(NOTICES, params={"processing_activity_id": ids["proc_a"]}, headers=w["mgr"])).json() == []
+    assert (await c.get(APPR, params={"state": "PENDING"}, headers=w["dpo"])).json() == []      # richiesta ritirata
+    assert (await c.delete(f"{NOTICES}/{approved['id']}", params={"force": "true"}, headers=ta)).status_code == 404
+
+
 # ---------------------------------------------------------------- collegamenti ai trattamenti
 
 @pytest.mark.asyncio
