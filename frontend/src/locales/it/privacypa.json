@@ -81,6 +81,11 @@
         "SUBTREE": "Sottoalbero organizzativo",
         "RECORD": "Singolo record"
       },
+      "scope_hint": {
+        "TENANT": "Il ruolo vale per tutte le strutture dell'ente.",
+        "UNIT": "Il ruolo vale solo per la struttura indicata.",
+        "SUBTREE": "Il ruolo vale per la struttura indicata e per quelle che ne dipendono."
+      },
       "user_hint": "Scegliere dall'organigramma del Portal; per un account di servizio scrivere l'identificativo (es. app:pramaia-helpdesk)."
     }
   },
@@ -1363,6 +1368,26 @@
     "file": "File corrente",
     "upload": "Carica versione",
     "download": "Scarica",
+    "delete": "Elimina",
+    "confirm_delete": "Eliminare il documento «{{title}}» con tutte le sue versioni? Non comparirà più nell'elenco; l'eliminazione resta nel registro delle attività.",
+    "refs": {
+      "title": "«{{title}}» è collegato ad altri elementi",
+      "intro": "Questi elementi usano il documento come allegato, evidenza o origine. Eliminandolo ne resterebbero privi:",
+      "admin_hint": "Puoi rimuovere i collegamenti ed eliminare il documento. Gli elementi qui sopra resteranno senza questo documento; l'operazione resta nel registro delle attività.",
+      "not_admin": "Solo un amministratore (Privacy Manager, DPO, amministratore dell'ente) può rimuovere i collegamenti ed eliminare il documento. In alternativa, togli il documento dai singoli elementi e riprova.",
+      "unlink_delete": "Rimuovi i collegamenti ed elimina",
+      "kinds": {
+        "transfer": "Trasferimento extra UE (TIA)",
+        "corrective_action": "Azione correttiva (evidenza)",
+        "notice_version": "Versione di informativa",
+        "processor_agreement": "Atto di nomina art. 28",
+        "contract": "Contratto",
+        "training_completion": "Attestato di formazione",
+        "measure_implementation": "Misura di sicurezza attuata (evidenza)",
+        "task": "Task",
+        "evidence": "Elemento di cui è evidenza"
+      }
+    },
     "scan": {
       "rescan": "Riesegui scansione",
       "rescanned": "Scansione ripetuta",

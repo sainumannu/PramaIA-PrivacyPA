@@ -107,6 +107,14 @@ def _safe_path(key: str) -> Path:
     return path
 
 
+class DocumentInUse(ValueError):
+    """Il documento è ancora collegato ad altri elementi (409): `references` li elenca."""
+
+    def __init__(self, references: list[dict]):
+        super().__init__(f"Il documento è collegato a {len(references)} elementi: rimuovere prima i collegamenti")
+        self.references = references
+
+
 class DocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -305,10 +313,106 @@ class DocumentService:
                 out.append(d)
         return out
 
-    async def soft_delete(self, tenant_id: str, document_id: str, actor: str) -> None:
+    async def _referencing_rows(self, tenant_id: str, document_id: str) -> list[tuple[str, object, str]]:
+        """(tipo, record, campo) degli elementi che indicano il documento come allegato, evidenza o origine."""
+        # Import differiti: i modelli dei moduli funzionali si importano tra loro.
+        from backend.models.privacypa_assessments import InternationalTransfer
+        from backend.models.privacypa_compliance import CorrectiveAction
+        from backend.models.privacypa_notices import PrivacyNotice, PrivacyNoticeVersion
+        from backend.models.privacypa_parties import Contract, ProcessorAgreement
+        from backend.models.privacypa_people import TrainingCompletion
+        from backend.models.privacypa_risk import MeasureImplementation
+        from backend.models.privacypa_tasks import PrivacyTask, TaskSourceType
+
+        specs = [
+            ("transfer", InternationalTransfer, "tia_document_id"),
+            ("corrective_action", CorrectiveAction, "evidence_document_id"),
+            ("processor_agreement", ProcessorAgreement, "document_id"),
+            ("contract", Contract, "document_id"),
+            ("training_completion", TrainingCompletion, "certificate_document_id"),
+            ("measure_implementation", MeasureImplementation, "evidence_document_id"),
+            ("task", PrivacyTask, "source_id"),
+        ]
+        rows: list[tuple[str, object, str]] = []
+        for kind, model, field in specs:
+            stmt = select(model).where(model.tenant_id == tenant_id, getattr(model, field) == document_id)
+            if hasattr(model, "deleted_at"):
+                stmt = stmt.where(model.deleted_at.is_(None))
+            if model is PrivacyTask:
+                stmt = stmt.where(PrivacyTask.source_type == TaskSourceType.DOCUMENT)
+            rows += [(kind, r, field) for r in (await self.db.execute(stmt)).scalars()]
+        versions = await self.db.execute(
+            select(PrivacyNoticeVersion).join(PrivacyNotice, PrivacyNotice.id == PrivacyNoticeVersion.privacy_notice_id)
+            .where(PrivacyNotice.tenant_id == tenant_id, PrivacyNoticeVersion.document_id == document_id)
+        )
+        rows += [("notice_version", r, "document_id") for r in versions.scalars()]
+        return rows
+
+    async def _reference_label(self, kind: str, row) -> str:
+        from backend.models.privacypa_notices import PrivacyNotice
+        from backend.models.privacypa_parties import Party
+        from backend.models.privacypa_people import TrainingCourse
+        from backend.models.privacypa_risk import SecurityMeasure
+
+        if kind in ("transfer", "corrective_action", "contract"):
+            return f"{row.code} · {row.title}"
+        if kind == "notice_version":
+            notice = await self.db.get(PrivacyNotice, row.privacy_notice_id)
+            return f"{notice.code} · {notice.title} (v{row.version_no})" if notice else f"v{row.version_no}"
+        if kind == "processor_agreement":
+            party = await self.db.get(Party, row.party_id)
+            return party.legal_name if party else row.id
+        if kind == "training_completion":
+            course = await self.db.get(TrainingCourse, row.course_id)
+            return f"{course.title if course else row.course_id} · {row.user_id}"
+        if kind == "measure_implementation":
+            measure = await self.db.get(SecurityMeasure, row.measure_id)
+            return measure.name if measure else row.measure_id
+        return row.title
+
+    async def _evidence_label(self, tenant_id: str, link: DocumentLink) -> str:
+        """Elemento di cui il documento è evidenza (collegamento del documento stesso)."""
+        from backend.services.privacypa_refs import ENTITY_KINDS, _kinds
+
+        kind = ENTITY_KINDS.get((link.entity_type or "").lower())
+        if kind is not None:
+            model = _kinds()[kind][0]
+            row = await self.db.get(model, link.entity_id)
+            if row is not None and getattr(row, "tenant_id", tenant_id) in (tenant_id, None):
+                name = next((getattr(row, a) for a in ("title", "name", "legal_name") if getattr(row, a, None)), None)
+                code = getattr(row, "code", None)
+                return " · ".join(x for x in (code, name) if x) or link.entity_id
+        return link.entity_id
+
+    async def references(self, tenant_id: str, document_id: str) -> list[dict]:
+        """Collegamenti del documento: da eliminarlo, questi elementi resterebbero senza allegato o evidenza."""
         doc = await self.get(tenant_id, document_id)
         if not doc:
             raise ValueError("Documento non trovato")
+        out = [{"kind": kind, "id": row.id, "label": await self._reference_label(kind, row)}
+               for kind, row, _ in await self._referencing_rows(tenant_id, document_id)]
+        out += [{"kind": "evidence", "entity_type": link.entity_type, "id": link.entity_id,
+                 "label": await self._evidence_label(tenant_id, link)} for link in doc.links]
+        return out
+
+    async def soft_delete(self, tenant_id: str, document_id: str, actor: str, unlink: bool = False) -> None:
+        """Elimina il documento; se è ancora collegato serve `unlink`, che prima toglie i collegamenti (solo amministratori)."""
+        doc = await self.get(tenant_id, document_id)
+        if not doc:
+            raise ValueError("Documento non trovato")
+        refs = await self.references(tenant_id, document_id)
+        if refs and not unlink:
+            raise DocumentInUse(refs)
+        if refs:
+            from backend.models.privacypa_tasks import TaskSourceType
+
+            for kind, row, field in await self._referencing_rows(tenant_id, document_id):
+                setattr(row, field, None)
+                if kind == "task":
+                    row.source_type = TaskSourceType.MANUAL
+            doc.links.clear()
+            await self.audit.log(tenant_id, "document", "unlink", entity_id=doc.id, actor_user_id=actor,
+                                 old_values={"references": refs})
         doc.deleted_at = datetime.utcnow()
         await self.db.flush()
         await self.audit.log(tenant_id, "document", "delete", entity_id=doc.id, actor_user_id=actor)

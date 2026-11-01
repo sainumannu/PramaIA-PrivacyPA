@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControl, InputLabel, List, ListItem, ListItemText, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -9,6 +9,7 @@ import AddIcon from '@mui/icons-material/Add';
 import UploadIcon from '@mui/icons-material/Upload';
 import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { PramaLayout } from '../components/PramaLayout';
 import { apiClient } from '../services/apiClient';
 import { usePermissions } from '../services/permissions';
@@ -19,6 +20,8 @@ interface Doc {
   id: string; code: string; title: string; document_type: string; status: string;
   current_version?: { id: string; file_name: string; sha256: string; expiry_date: string | null; version_no: number; scan_status: string };
 }
+
+interface Reference { kind: string; id: string; label: string }
 
 const TYPES = ['POLICY','AGREEMENT_ART28','NOTICE','DPIA','EVIDENCE','REGISTER_EXTRACT','OTHER'];
 
@@ -35,6 +38,7 @@ export const DocumentsPage: React.FC = () => {
   const [level, setLevel] = useState('INTERNAL');
   const [uploadFor, setUploadFor] = useState<Doc | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [linked, setLinked] = useState<{ doc: Doc; refs: Reference[] } | null>(null);
 
   const load = async () => {
     try { setItems(await apiClient.get<Doc[]>('/api/privacypa/documents')); }
@@ -58,6 +62,26 @@ export const DocumentsPage: React.FC = () => {
       await apiClient.upload(`/api/privacypa/documents/${uploadFor.id}/versions`, form);
       setUploadFor(null); setFile(null); await load();
     } catch (e: any) { setError(e.message); }
+  };
+
+  // Un documento collegato ad altri elementi non si elimina: si mostrano i collegamenti, che solo un amministratore può togliere.
+  const remove = async (row: Doc) => {
+    try {
+      const refs = await apiClient.get<Reference[]>(`/api/privacypa/documents/${row.id}/references`);
+      if (refs.length) { setLinked({ doc: row, refs }); return; }
+      if (!window.confirm(t('documents.confirm_delete', { title: row.title }))) return;
+      await apiClient.delete(`/api/privacypa/documents/${row.id}`);
+      await load();
+    } catch (e: any) { setError(e.message); }
+  };
+
+  const unlinkAndRemove = async () => {
+    if (!linked) return;
+    try {
+      await apiClient.delete(`/api/privacypa/documents/${linked.doc.id}?unlink=true`);
+      setLinked(null);
+      await load();
+    } catch (e: any) { setLinked(null); setError(e.message); }
   };
 
   return (
@@ -123,6 +147,9 @@ export const DocumentsPage: React.FC = () => {
                     {row.current_version && (
                       <Button size="small" startIcon={<DownloadIcon />} disabled={row.current_version.scan_status !== 'CLEAN'} onClick={() => apiClient.download(`/api/privacypa/documents/${row.id}/file`, row.current_version!.file_name)}>{t('documents.download')}</Button>
                     )}
+                    {can('document.delete') && (
+                      <Button size="small" color="error" startIcon={<DeleteIcon />} onClick={() => remove(row)}>{t('documents.delete')}</Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -161,6 +188,28 @@ export const DocumentsPage: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setUploadFor(null)}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={upload} disabled={!file}>{t('documents.upload')}</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={Boolean(linked)} onClose={() => setLinked(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{t('documents.refs.title', { title: linked?.doc.title || '' })}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">{t('documents.refs.intro')}</Typography>
+          <List dense>
+            {linked?.refs.map((r) => (
+              <ListItem key={`${r.kind}-${r.id}`} disableGutters>
+                <ListItemText primary={r.label} secondary={t(`documents.refs.kinds.${r.kind}`)} />
+              </ListItem>
+            ))}
+          </List>
+          {can('document.administer')
+            ? <Alert severity="warning">{t('documents.refs.admin_hint')}</Alert>
+            : <Alert severity="info">{t('documents.refs.not_admin')}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinked(null)}>{t('common.cancel')}</Button>
+          {can('document.administer') && (
+            <Button variant="contained" color="error" onClick={unlinkAndRemove}>{t('documents.refs.unlink_delete')}</Button>
+          )}
         </DialogActions>
       </Dialog>
     </PramaLayout>

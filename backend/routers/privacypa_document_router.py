@@ -11,14 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth.portal_jwt import TokenPayload, get_current_user
 from backend.auth.privacypa_authz import require_tenant
 from backend.auth.privacypa_confidentiality import assert_step_up, load_level_access
-from backend.auth.privacypa_permissions import require_module_view, require_permission, roles_for
+from backend.auth.privacypa_permissions import assert_permission, require_module_view, require_permission, roles_for
 from backend.auth.privacypa_scope import PROCESSING_LINK_TYPES, VisibilityScope, build_scope
 from backend.db.database import get_db
 from backend.models.privacypa_audit import AuditLog
 from backend.models.privacypa_documents import DocumentStatus, DocumentType
 from backend.models.privacypa_processing import ConfidentialityLevel
 from backend.services.privacypa_audit_service import AuditService
-from backend.services.privacypa_document_service import MAX_BYTES, DocumentService
+from backend.services.privacypa_document_service import MAX_BYTES, DocumentInUse, DocumentService
 from backend.services.privacypa_watermark import WatermarkUnsupported, apply_watermark, watermark_text
 from backend.utils.concurrency import assert_version, etag_of, require_if_match
 
@@ -255,15 +255,33 @@ async def rescan_version(
     return version.to_dict()
 
 
+@router.get("/{document_id}/references")
+async def document_references(
+    document_id: str,
+    tenant_id: str = Depends(require_tenant),
+    user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elementi collegati al documento (allegato, evidenza, origine di un task): da controllare prima di eliminarlo."""
+    await _get_visible_document(db, tenant_id, user, document_id)
+    return await DocumentService(db).references(tenant_id, document_id)
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: str,
+    unlink: bool = False,
     tenant_id: str = Depends(require_tenant),
     user: TokenPayload = Depends(require_permission("document.delete")),
     db: AsyncSession = Depends(get_db),
 ):
+    """Un documento ancora collegato non si elimina (409); con `unlink` un amministratore toglie prima i collegamenti."""
     await _get_visible_document(db, tenant_id, user, document_id, write_code="document.delete")
+    if unlink:
+        await assert_permission(user, db, "document.administer")
     try:
-        await DocumentService(db).soft_delete(tenant_id, document_id, user.sub or user.email)
+        await DocumentService(db).soft_delete(tenant_id, document_id, user.sub or user.email, unlink=unlink)
+    except DocumentInUse as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

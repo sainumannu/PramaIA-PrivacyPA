@@ -81,6 +81,11 @@
         "SUBTREE": "Organizational subtree",
         "RECORD": "Single record"
       },
+      "scope_hint": {
+        "TENANT": "The role applies to every unit of the organisation.",
+        "UNIT": "The role applies to the selected unit only.",
+        "SUBTREE": "The role applies to the selected unit and to the units below it."
+      },
       "user_hint": "Choose from the Portal org chart; for a service account type the identifier (e.g. app:pramaia-helpdesk)."
     }
   },
@@ -1363,6 +1368,26 @@
     "file": "Current file",
     "upload": "Upload version",
     "download": "Download",
+    "delete": "Delete",
+    "confirm_delete": "Delete the document “{{title}}” with all its versions? It will no longer appear in the list; the deletion stays in the activity log.",
+    "refs": {
+      "title": "“{{title}}” is linked to other items",
+      "intro": "These items use the document as an attachment, evidence or source. Deleting it would leave them without it:",
+      "admin_hint": "You can remove the links and delete the document. The items above will no longer have this document; the operation is kept in the activity log.",
+      "not_admin": "Only an administrator (Privacy Manager, DPO, organisation administrator) can remove the links and delete the document. Alternatively, remove the document from each item and try again.",
+      "unlink_delete": "Remove links and delete",
+      "kinds": {
+        "transfer": "Transfer outside the EU (TIA)",
+        "corrective_action": "Corrective action (evidence)",
+        "notice_version": "Privacy notice version",
+        "processor_agreement": "Art. 28 processor agreement",
+        "contract": "Contract",
+        "training_completion": "Training certificate",
+        "measure_implementation": "Implemented security measure (evidence)",
+        "task": "Task",
+        "evidence": "Item it is evidence for"
+      }
+    },
     "choose_file": "Choose file",
     "types": {
       "POLICY": "Policy",

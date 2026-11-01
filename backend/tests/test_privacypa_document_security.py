@@ -5,7 +5,9 @@ import struct
 import zipfile
 
 import pytest
+from sqlalchemy import select
 
+from backend.models.privacypa_audit import AuditLog
 from backend.models.privacypa_identity import PrivacyRoleCode as R
 from backend.services import privacypa_scanner as scanner
 from backend.services.privacypa_document_service import MAX_BYTES, DocumentService, sanitize_filename
@@ -331,3 +333,48 @@ async def test_quarantined_documents_are_rescanned_when_a_scanner_appears(env, m
     # la versione risultata infetta non resta corrente: torna quella pulita
     doc = (await c.get(f"/api/privacypa/documents/{bad_doc}", headers=who)).json()
     assert doc["current_version_id"] == clean["id"]
+
+
+
+@pytest.mark.asyncio
+async def test_deleted_document_leaves_the_list_and_cannot_be_downloaded(env):
+    c = env["client"]
+    await env["grant"](TA, "mgr", R.PRIVACY_MANAGER)
+    await env["grant"](TA, "reader", R.READ_ONLY)
+    mgr = _h(TA, "mgr")
+    doc_id = await _new_doc(c, mgr)
+    assert (await _upload(c, mgr, doc_id, "nota.pdf", PDF)).status_code == 200
+
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", headers=_h(TA, "reader"))).status_code == 403
+    assert (await c.get(f"/api/privacypa/documents/{doc_id}/references", headers=mgr)).json() == []
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", headers=mgr)).status_code == 204
+    assert doc_id not in {d["id"] for d in (await c.get("/api/privacypa/documents", headers=mgr)).json()}
+    assert (await c.get(f"/api/privacypa/documents/{doc_id}/file", headers=mgr)).status_code == 404
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", headers=mgr)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_linked_document_is_deleted_only_by_an_administrator_who_removes_the_links(env):
+    c = env["client"]
+    await env["grant"](TA, "mgr", R.PRIVACY_MANAGER)
+    await env["grant"](TA, "op", R.OPERATOR)
+    mgr, op = _h(TA, "mgr"), _h(TA, "op")
+    doc = await c.post("/api/privacypa/documents", json={"title": "Registro firmato", "links": [
+        {"entity_type": "processing_activity", "entity_id": env["ids"]["proc_a"]}]}, headers=mgr)
+    assert doc.status_code == 201, doc.text
+    doc_id = doc.json()["id"]
+    task = await c.post("/api/privacypa/tasks", json={"title": "Rinnovare il registro", "source_type": "DOCUMENT",
+                                                      "source_id": doc_id}, headers=mgr)
+    assert task.status_code == 201, task.text
+
+    refs = (await c.get(f"/api/privacypa/documents/{doc_id}/references", headers=op)).json()
+    assert sorted((r["kind"], r["label"].split(" · ")[-1]) for r in refs) == [("evidence", "Trattamento A"), ("task", "Rinnovare il registro")], refs
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", headers=mgr)).status_code == 409
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", params={"unlink": "true"}, headers=op)).status_code == 403
+
+    assert (await c.delete(f"/api/privacypa/documents/{doc_id}", params={"unlink": "true"}, headers=mgr)).status_code == 204
+    t = next(x for x in (await c.get("/api/privacypa/tasks", headers=mgr)).json() if x["id"] == task.json()["id"])
+    assert (t["source_type"], t["source_id"]) == ("MANUAL", None)
+    async with env["maker"]() as db:
+        actions = (await db.execute(select(AuditLog.action).where(AuditLog.entity_id == doc_id))).scalars().all()
+    assert {"unlink", "delete"} <= set(actions)
