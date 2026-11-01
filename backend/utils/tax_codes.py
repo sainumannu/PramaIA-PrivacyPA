@@ -2,6 +2,8 @@
 
 Il codice fiscale di una persona fisica ha 16 caratteri (anche nella forma con omocodia), quello di un ente o di
 una società 11 cifre, con lo stesso algoritmo della partita IVA. Una ditta individuale usa il codice del titolare.
+Il codice fiscale è obbligatorio solo per le persone fisiche: di un ente o di una società spesso non si conosce
+(né sempre c'è una partita IVA), e basta la denominazione.
 """
 import re
 
@@ -47,25 +49,26 @@ def is_numeric_code(value: str) -> bool:
 
 
 def check_identifiers(country_code: str | None, natural_person: bool, tax_id: str | None, vat_id: str | None) -> tuple[str | None, str | None]:
-    """Verifica che il soggetto sia identificabile senza ambiguità e restituisce gli identificativi normalizzati.
+    """Verifica gli identificativi del soggetto e li restituisce normalizzati.
 
-    In Italia serve il codice fiscale: di 16 caratteri per una persona fisica, di 11 cifre (o del titolare, per una
-    ditta individuale) per un ente o una società. All'estero basta un identificativo fiscale qualsiasi.
+    Una persona fisica deve avere il codice fiscale: di 16 caratteri in Italia, all'estero l'identificativo fiscale del
+    suo paese. Per un ente o una società sono facoltativi; in Italia, se indicati, devono essere validi: codice fiscale
+    di 11 cifre (o del titolare, per una ditta individuale) e partita IVA di 11 cifre.
     """
     tax_id, vat_id = normalize(tax_id), normalize(vat_id)
     italian = (country_code or "IT").upper() == "IT"
     if not italian:
-        if not tax_id and not vat_id:
-            raise ValueError("Indicare l'identificativo fiscale del soggetto estero (codice fiscale o partita IVA del suo paese)")
+        if natural_person and not tax_id and not vat_id:
+            raise ValueError("Indicare l'identificativo fiscale della persona (il codice fiscale del suo paese)")
         return tax_id, vat_id
     if vat_id and vat_id.startswith("IT"):
         vat_id = vat_id[2:]
-    if not tax_id:
-        raise ValueError("Indicare il codice fiscale: serve a identificare il soggetto senza ambiguità")
     if natural_person:
+        if not tax_id:
+            raise ValueError("Indicare il codice fiscale: per una persona fisica è obbligatorio")
         if not is_person_code(tax_id):
             raise ValueError("Codice fiscale non valido: per una persona fisica servono 16 caratteri con il carattere di controllo corretto")
-    elif not (is_numeric_code(tax_id) or is_person_code(tax_id)):
+    elif tax_id and not (is_numeric_code(tax_id) or is_person_code(tax_id)):
         raise ValueError("Codice fiscale non valido: per un ente o una società servono 11 cifre (16 caratteri per una ditta individuale)")
     if vat_id and not is_numeric_code(vat_id):
         raise ValueError("Partita IVA non valida: servono 11 cifre con la cifra di controllo corretta")

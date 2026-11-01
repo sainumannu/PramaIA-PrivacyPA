@@ -53,12 +53,19 @@ def test_tax_code_check_characters():
 
 
 @pytest.mark.asyncio
-async def test_every_party_must_be_identifiable(env, mgr):
-    missing = await _post(env, mgr, party_type="RECIPIENT")
+async def test_people_need_a_tax_code_companies_may_have_none(env, mgr):
+    missing = await _post(env, mgr, legal_name="Mario Rossi", party_type="OTHER", natural_person=True)
     assert missing.status_code == 400 and "codice fiscale" in missing.json()["detail"]
-    assert (await _post(env, mgr, party_type="RECIPIENT", tax_id="01234567890")).status_code == 400   # controllo errato
     assert (await _post(env, mgr, party_type="OTHER", natural_person=True, tax_id=CF_SOCIETA)).status_code == 400
-    assert (await _post(env, mgr, party_type="SUPPLIER", country_code="DE")).status_code == 400
+    assert (await _post(env, mgr, party_type="OTHER", natural_person=True, country_code="DE")).status_code == 400
+    # un ente o una società può non avere codice fiscale né partita IVA, ma quelli indicati devono essere validi
+    bare = await _post(env, mgr, party_type="RECIPIENT")
+    assert bare.status_code == 201 and bare.json()["identified"] is True
+    only_vat = await _post(env, mgr, party_type="SUPPLIER", vat_id="IT01234567897")
+    assert only_vat.status_code == 201 and (only_vat.json()["tax_id"], only_vat.json()["vat_id"]) == (None, CF_SOCIETA)
+    assert (await _post(env, mgr, party_type="RECIPIENT", tax_id="01234567890")).status_code == 400   # controllo errato
+    assert (await _post(env, mgr, party_type="RECIPIENT", vat_id="01234567890")).status_code == 400
+    assert (await _post(env, mgr, party_type="SUPPLIER", country_code="DE")).status_code == 201
 
     person = await _post(env, mgr, legal_name="Mario Rossi", party_type="OTHER", natural_person=True, tax_id="rssmra80a01h501u")
     assert person.status_code == 201, person.text
@@ -68,7 +75,7 @@ async def test_every_party_must_be_identifiable(env, mgr):
     foreign = await _post(env, mgr, party_type="RECIPIENT", country_code="de", vat_id="DE123456789")
     assert foreign.status_code == 201 and foreign.json()["country_code"] == "DE"
 
-    # in modifica vale la stessa regola: non si toglie il codice fiscale
+    # in modifica vale la stessa regola: a una persona non si toglie il codice fiscale
     p = person.json()
     r = await env["client"].patch(f"{PARTIES}/{p['id']}", json={"legal_name": "Mario Rossi", "party_type": "OTHER",
                                                                  "natural_person": True, "tax_id": None},
@@ -167,9 +174,10 @@ async def test_term_expiry_and_incomplete_parties_are_flagged(env, mgr):
     found = await _findings(env, mgr, "APPOINTMENT_EXPIRING")
     assert [(f["entity_id"], f["due_date"]) for f in found] == [(expiring["id"], iso(20))]
 
-    # soggetti registrati prima delle regole (o importati): senza codice fiscale e senza durata
+    # soggetti registrati prima delle regole (o importati): codice fiscale errato e senza durata
     async with env["maker"]() as db:
-        db.add(Party(id="legacy-1", tenant_id=TA, code="FO-900001", legal_name="Storico Srl", party_type=PartyType.PROCESSOR))
+        db.add(Party(id="legacy-1", tenant_id=TA, code="FO-900001", legal_name="Storico Srl", party_type=PartyType.PROCESSOR,
+                     tax_id="01234567890"))
         await db.commit()
     from backend.services.privacypa_party_service import PartyService
     async with env["maker"]() as db:

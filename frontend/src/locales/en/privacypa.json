@@ -300,13 +300,13 @@
       "person": "Individual"
     },
     "identity": {
-      "cf_required": "Enter the tax code: it identifies the party unambiguously.",
-      "foreign_required": "Enter the tax identifier of the foreign party (tax code or VAT number of its country).",
+      "cf_required": "Enter the tax code: it is mandatory for an individual.",
+      "foreign_required": "Enter the individual's tax identifier (the tax code of their country).",
       "cf_person_invalid": "Invalid tax code: an individual needs 16 characters with the correct check character.",
       "cf_entity_invalid": "Invalid tax code: a body or company needs 11 digits (16 characters for a sole proprietorship).",
       "vat_invalid": "Invalid VAT number: 11 digits with the correct check digit are required.",
       "cf_person_hint": "16 characters. For a foreign party, its tax identifier.",
-      "cf_entity_hint": "11 digits (16 characters for a sole proprietorship).",
+      "cf_entity_hint": "Optional. 11 digits (16 characters for a sole proprietorship).",
       "incomplete": "to complete"
     },
     "term": {

@@ -77,9 +77,10 @@ export function isNumericCode(v: string): boolean {
 export function identifierError(country: string, natural: boolean, taxId: string, vatId: string, t: (k: string) => string): string | null {
   const cf = normalizeCode(taxId);
   let vat = normalizeCode(vatId);
-  if ((country || 'IT').toUpperCase() !== 'IT') return cf || vat ? null : t('parties.identity.foreign_required');
-  if (!cf) return t('parties.identity.cf_required');
-  if (natural ? !isPersonCode(cf) : !(isNumericCode(cf) || isPersonCode(cf))) {
+  // il codice fiscale è obbligatorio solo per una persona fisica; per enti e società si controlla se c'è
+  if ((country || 'IT').toUpperCase() !== 'IT') return !natural || cf || vat ? null : t('parties.identity.foreign_required');
+  if (natural && !cf) return t('parties.identity.cf_required');
+  if (cf && (natural ? !isPersonCode(cf) : !(isNumericCode(cf) || isPersonCode(cf)))) {
     return t(natural ? 'parties.identity.cf_person_invalid' : 'parties.identity.cf_entity_invalid');
   }
   if (vat.startsWith('IT')) vat = vat.slice(2);
@@ -217,7 +218,7 @@ export const PartyDialog: React.FC<{
           </Select>
         </FormControl>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: form.natural_person ? '3fr 1fr' : '2fr 2fr 1fr' }, gap: 2 }}>
-          <TextField label={t('parties.tax_code')} value={form.tax_id} required={(form.country_code || 'IT').toUpperCase() === 'IT'}
+          <TextField label={t('parties.tax_code')} value={form.tax_id} required={form.natural_person}
             error={Boolean(form.tax_id) && Boolean(idError)} inputProps={{ style: { textTransform: 'uppercase' } }}
             helperText={form.tax_id && idError ? idError : t(form.natural_person ? 'parties.identity.cf_person_hint' : 'parties.identity.cf_entity_hint')}
             onChange={(e) => set({ tax_id: e.target.value })} />

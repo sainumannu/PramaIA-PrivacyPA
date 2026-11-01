@@ -37,7 +37,7 @@ EXPIRING_DAYS = 60
 
 
 def is_identified(party: Party) -> bool:
-    """Il soggetto ha gli identificativi che oggi si chiedono a chi entra in anagrafica."""
+    """Il soggetto ha gli identificativi che oggi si chiedono a chi entra in anagrafica (una persona il codice fiscale)."""
     try:
         check_identifiers(party.country_code, bool(party.natural_person), party.tax_id, party.vat_id)
     except ValueError:
@@ -129,8 +129,8 @@ class PartyService:
     async def check_input(self, tenant_id: str, party_id: str | None, data: dict) -> dict:
         """Regole per chi inserisce o modifica un soggetto dall'interfaccia o dall'API.
 
-        Il soggetto deve essere identificabile senza ambiguità (codice fiscale valido o, all'estero, un identificativo
-        fiscale). Responsabili e contitolari hanno un incarico a termine: fino alla fine di un contratto (esistente o
+        Una persona fisica deve avere il codice fiscale (all'estero, il suo identificativo fiscale); per enti e società
+        gli identificativi sono facoltativi ma, se indicati, devono essere validi. Responsabili e contitolari hanno un incarico a termine: fino alla fine di un contratto (esistente o
         registrato insieme) oppure fino a una data.
         """
         data["tax_id"], data["vat_id"] = check_identifiers(

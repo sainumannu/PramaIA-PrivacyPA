@@ -300,13 +300,13 @@
       "person": "Persona fisica"
     },
     "identity": {
-      "cf_required": "Indicare il codice fiscale: serve a identificare il soggetto senza ambiguità.",
-      "foreign_required": "Indicare l'identificativo fiscale del soggetto estero (codice fiscale o partita IVA del suo paese).",
+      "cf_required": "Indicare il codice fiscale: per una persona fisica è obbligatorio.",
+      "foreign_required": "Indicare l'identificativo fiscale della persona (il codice fiscale del suo paese).",
       "cf_person_invalid": "Codice fiscale non valido: per una persona fisica servono 16 caratteri con il carattere di controllo corretto.",
       "cf_entity_invalid": "Codice fiscale non valido: per un ente o una società servono 11 cifre (16 caratteri per una ditta individuale).",
       "vat_invalid": "Partita IVA non valida: servono 11 cifre con la cifra di controllo corretta.",
       "cf_person_hint": "16 caratteri. Per un soggetto estero, il suo identificativo fiscale.",
-      "cf_entity_hint": "11 cifre (16 caratteri per una ditta individuale).",
+      "cf_entity_hint": "Facoltativo. 11 cifre (16 caratteri per una ditta individuale).",
       "incomplete": "da completare"
     },
     "term": {

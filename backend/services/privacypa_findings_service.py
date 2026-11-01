@@ -278,7 +278,7 @@ async def _party_data_incomplete(ctx: Context, params: dict) -> list[Hit]:
             continue  # in archivio
         if not is_identified(party):
             hits.append(Hit(
-                "party", party.id, f"{party.legal_name} non ha un codice fiscale valido (o, all'estero, un identificativo fiscale)",
+                "party", party.id, f"{party.legal_name}: codice fiscale o partita IVA mancanti o non validi",
                 entity_code=party.code, subject="identifier", params={"party": party.legal_name, "missing": "identifier"},
             ))
         if info and info["state"] == "UNDEFINED":
