@@ -49,8 +49,13 @@ class IdentityService:
         organizational_unit_id: str | None = None,
         valid_to: datetime | None = None,
     ) -> UserRoleAssignment:
+        if scope_type == ScopeType.RECORD:
+            # Non c'è ancora il record a cui legarlo e i permessi lo ignorerebbero: il ruolo non darebbe accesso a nulla.
+            raise ValueError("Un ruolo su un singolo record non è ancora gestito: scegliere l'ente, una struttura o un sottoalbero")
         if scope_type in (ScopeType.UNIT, ScopeType.SUBTREE) and not organizational_unit_id:
             raise ValueError(f"scope_type={scope_type.value} richiede organizational_unit_id")
+        if scope_type == ScopeType.TENANT:
+            organizational_unit_id = None
         if role_code == PrivacyRoleCode.INTEGRATION_HELPDESK:
             # Ruolo tecnico dell'HelpDesk: mai a una persona, sempre sull'intero ente.
             if not is_service_account(user_id):

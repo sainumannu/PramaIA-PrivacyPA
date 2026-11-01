@@ -25,6 +25,7 @@ import { apiClient } from '../services/apiClient';
 import { useTranslation } from '../i18n/useTranslation';
 import { ErrorBanner } from './ErrorBanner';
 import { PersonField } from './PortalPeople';
+import { UnitPicker } from './UnitPicker';
 
 interface PrivacyRole {
   code: string;
@@ -49,7 +50,8 @@ interface UserRoleAssignment {
   granted_at: string | null;
 }
 
-const SCOPE_TYPES = ['TENANT', 'UNIT', 'SUBTREE', 'RECORD'];
+// RECORD non si assegna da qui: un ruolo su un singolo record non ha ancora un record da indicare né effetto sui permessi.
+const SCOPE_TYPES = ['TENANT', 'UNIT', 'SUBTREE'];
 
 export const PrivacyRolesPanel: React.FC = () => {
   const { t } = useTranslation('privacypa');
@@ -111,13 +113,14 @@ export const PrivacyRolesPanel: React.FC = () => {
 
   const roleName = (code: string) => catalog.find((r) => r.code === code)?.name || code;
   const unitName = (id: string | null) => units.find((u) => u.id === id)?.name || '—';
+  const needsUnit = scopeType === 'UNIT' || scopeType === 'SUBTREE';
 
   const handleAssign = async () => {
     if (!userId.trim() || !roleCode) {
       setError(t('organization.roles.select_user_and_role') || 'Indicare utente e ruolo');
       return;
     }
-    if ((scopeType === 'UNIT' || scopeType === 'SUBTREE') && !unitId) {
+    if (needsUnit && !unitId) {
       setError(t('organization.roles.unit_required') || 'Selezionare una struttura per questo ambito');
       return;
     }
@@ -126,7 +129,7 @@ export const PrivacyRolesPanel: React.FC = () => {
         user_id: userId,
         role_code: roleCode,
         scope_type: scopeType,
-        organizational_unit_id: scopeType === 'TENANT' || scopeType === 'RECORD' ? null : unitId,
+        organizational_unit_id: needsUnit ? unitId : null,
       });
       setSuccess(t('organization.roles.assigned') || 'Ruolo assegnato con successo');
       setRoleCode('');
@@ -199,7 +202,7 @@ export const PrivacyRolesPanel: React.FC = () => {
             onChange={setUserId}
           />
         </Grid>
-        <Grid item xs={12} sm={3}>
+        <Grid item xs={12} sm={4}>
           <TextField
             select
             label={t('organization.roles.role') || 'Ruolo'}
@@ -215,12 +218,13 @@ export const PrivacyRolesPanel: React.FC = () => {
             ))}
           </TextField>
         </Grid>
-        <Grid item xs={12} sm={2}>
+        <Grid item xs={12} sm={4}>
           <TextField
             select
             label={t('organization.roles.scope_type') || 'Ambito'}
             value={scopeType}
             onChange={(e) => setScopeType(e.target.value)}
+            helperText={t(`organization.roles.scope_hint.${scopeType}`)}
             fullWidth
           >
             {SCOPE_TYPES.map((s) => (
@@ -230,23 +234,17 @@ export const PrivacyRolesPanel: React.FC = () => {
             ))}
           </TextField>
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <TextField
-            select
-            label={t('organization.roles.scope_unit') || 'Struttura di riferimento'}
-            value={unitId}
-            onChange={(e) => setUnitId(e.target.value)}
-            fullWidth
-            disabled={scopeType !== 'UNIT' && scopeType !== 'SUBTREE'}
-          >
-            <MenuItem value="">—</MenuItem>
-            {units.map((u) => (
-              <MenuItem key={u.id} value={u.id}>
-                {u.name} ({u.code})
-              </MenuItem>
-            ))}
-          </TextField>
-        </Grid>
+        {needsUnit && (
+          <Grid item xs={12} sm={8}>
+            <UnitPicker
+              label={t('organization.roles.scope_unit') || 'Struttura di riferimento'}
+              value={unitId}
+              required
+              onChange={setUnitId}
+              onUnitAdded={loadUnits}
+            />
+          </Grid>
+        )}
       </Grid>
 
       <Button
