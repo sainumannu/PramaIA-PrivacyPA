@@ -18,6 +18,7 @@ from backend.models.privacypa_people import (
     ACCESS_SCOPE_TYPES,
     Authorization,
     AuthorizationProfile,
+    AuthorizationSnapshot,
     AssignmentStatus,
     TrainingAssignment,
     TrainingCompletion,
@@ -264,6 +265,35 @@ class TrainingService(_Base):
 
 # ================================================================ autorizzati
 
+def _snapshot_data(auth: Authorization) -> dict:
+    """I valori del record come versione dello storico (senza `active`, che dipende dal giorno in cui si legge)."""
+    data = auth.to_dict()
+    data.pop("active", None)
+    return data
+
+
+def _status_at(values: dict, day: date) -> str:
+    """Stato di una versione al giorno indicato; il giorno della revoca non conta più come valido."""
+    iso = day.isoformat()
+    if values.get("revoked_at") and values["revoked_at"][:10] <= iso:
+        return "REVOKED"
+    if values.get("valid_from") and values["valid_from"][:10] > iso:
+        return "NOT_STARTED"
+    if values.get("valid_to") and values["valid_to"][:10] < iso:
+        return "EXPIRED"
+    return "ACTIVE"
+
+
+def _training_at(course_id: str, title: str | None, completions: list[TrainingCompletion], day: date) -> dict:
+    """Formazione richiesta dal profilo: completata entro il giorno e non ancora da rinnovare, scaduta o mancante."""
+    taken = [c for c in completions if c.course_id == course_id and c.completed_at <= day]
+    last = max(taken, key=lambda c: c.completed_at) if taken else None
+    state = "MISSING" if last is None else "EXPIRED" if last.next_due_at and last.next_due_at < day else "DONE"
+    return {"course_id": course_id, "title": title, "state": state,
+            "completed_at": last.completed_at.isoformat() if last else None,
+            "next_due_at": last.next_due_at.isoformat() if last and last.next_due_at else None}
+
+
 _AUTH_FIELDS = {
     "user_id", "processing_activity_id", "asset_id", "authorization_profile_id", "valid_from", "valid_to",
     # estremi, contenuto e origine della concessione (richieste di accesso dall'HelpDesk)
@@ -491,11 +521,78 @@ class AuthorizationService(_Base):
                 "valid_to": auth.valid_to.isoformat() if auth.valid_to else None, "source_ref": auth.source_ref,
                 "profile_version": auth.profile_version, "forced": auth.forced}
 
+    async def _snapshot(self, auth: Authorization, action: str, actor: str, previous: dict | None = None) -> None:
+        """Versione dopo la modifica; alla prima modifica di un record senza storico conserva anche i valori di prima."""
+        if previous is not None:
+            known = (await self.db.execute(select(AuthorizationSnapshot.id).where(
+                AuthorizationSnapshot.authorization_id == auth.id).limit(1))).first()
+            if known is None:
+                self.db.add(AuthorizationSnapshot(tenant_id=auth.tenant_id, authorization_id=auth.id, action="baseline",
+                                                  recorded_at=auth.granted_at, data=previous))
+        self.db.add(AuthorizationSnapshot(tenant_id=auth.tenant_id, authorization_id=auth.id, action=action,
+                                          actor_user_id=actor, data=_snapshot_data(auth)))
+        await self.db.flush()
+
+    async def history(self, tenant_id: str, auth_id: str) -> list[AuthorizationSnapshot]:
+        rows = await self.db.execute(select(AuthorizationSnapshot).where(
+            AuthorizationSnapshot.tenant_id == tenant_id, AuthorizationSnapshot.authorization_id == auth_id,
+        ).order_by(AuthorizationSnapshot.recorded_at, AuthorizationSnapshot.id))
+        return list(rows.scalars().all())
+
+    async def person_view(self, tenant_id: str, user_id: str, as_of: date) -> list[dict]:
+        """
+        Le autorizzazioni di una persona come valevano alla fine del giorno `as_of`: valori della versione in vigore
+        quel giorno, stato a quella data e formazione richiesta dal profilo. Ordinate: prima quelle valide.
+        """
+        rows = await self.search(tenant_id, user_id=user_id)
+        if not rows:
+            return []
+        snaps: dict[str, list[AuthorizationSnapshot]] = {a.id: [] for a in rows}
+        for s in (await self.db.execute(select(AuthorizationSnapshot).where(
+            AuthorizationSnapshot.tenant_id == tenant_id, AuthorizationSnapshot.authorization_id.in_(list(snaps)),
+        ).order_by(AuthorizationSnapshot.recorded_at, AuthorizationSnapshot.id))).scalars():
+            snaps[s.authorization_id].append(s)
+        profiles = {p.id: p for p in (await self.db.execute(select(AuthorizationProfile).where(
+            AuthorizationProfile.tenant_id == tenant_id,
+            AuthorizationProfile.id.in_({a.authorization_profile_id for a in rows}),
+        ))).scalars()}
+        courses = {c for p in profiles.values() for c in (p.required_training_course_ids or [])}
+        course_names = dict((await self.db.execute(select(TrainingCourse.id, TrainingCourse.title).where(
+            TrainingCourse.tenant_id == tenant_id, TrainingCourse.id.in_(courses)))).all()) if courses else {}
+        done = list((await self.db.execute(select(TrainingCompletion).where(
+            TrainingCompletion.tenant_id == tenant_id, TrainingCompletion.user_id == user_id))).scalars().all())
+
+        end = datetime.combine(as_of, time.max)
+        result = []
+        for auth in rows:
+            history = snaps[auth.id]
+            before = [s for s in history if s.recorded_at <= end]
+            # registrata dopo la data (decorrenza retroattiva): valgono i valori con cui è stata registrata
+            values = before[-1].data if before else history[0].data if history else _snapshot_data(auth)
+            profile = profiles.get(auth.authorization_profile_id)
+            tracked = [s.recorded_at for s in history if s.action != "baseline"]
+            result.append({
+                "authorization_id": auth.id,
+                "values": values,
+                "status_at": _status_at(values, as_of),
+                "registered_after": auth.granted_at is not None and auth.granted_at > end,
+                "changed_after": any(s.recorded_at > end for s in history),
+                "tracked_since": tracked[0].isoformat() if tracked else None,
+                "profile_name": profile.name if profile else None,
+                "profile_current_version": profile.row_version if profile else None,
+                "training": [_training_at(c, course_names.get(c), done, as_of)
+                             for c in (profile.required_training_course_ids or [] if profile else [])],
+            })
+        order = {"ACTIVE": 0, "NOT_STARTED": 1, "EXPIRED": 2, "REVOKED": 3}
+        result.sort(key=lambda r: (order[r["status_at"]], r["values"].get("valid_from") or ""))
+        return result
+
     async def create(self, tenant_id: str, actor: str, **fields) -> Authorization:
         data = await self._validate(tenant_id, {k: fields.get(k) for k in _AUTH_FIELDS})
         auth = Authorization(tenant_id=tenant_id, granted_by=actor, **data)
         self.db.add(auth)
         await self.db.flush()
+        await self._snapshot(auth, "create", actor)
         await self.audit.log(tenant_id, "authorization", "create", entity_id=auth.id, actor_user_id=actor, new_values=self._summary(auth))
         return auth
 
@@ -512,9 +609,11 @@ class AuthorizationService(_Base):
             raise ComplianceError("L'utente di un'autorizzazione non si cambia: revocarla e crearne un'altra")
         if merged["authorization_profile_id"] != auth.authorization_profile_id and "profile_version" not in fields:
             merged["profile_version"] = None            # nuovo profilo: vale la sua versione corrente
+        previous = _snapshot_data(auth)
         for key, value in (await self._validate(tenant_id, merged, exclude_id=auth.id)).items():
             setattr(auth, key, value)
         await self.db.flush()
+        await self._snapshot(auth, "update", actor, previous)
         await self.audit.log(tenant_id, "authorization", "update", entity_id=auth.id, actor_user_id=actor, new_values=self._summary(auth))
         return auth
 
@@ -527,9 +626,11 @@ class AuthorizationService(_Base):
         if not (reason or "").strip():
             raise ComplianceError("La revoca richiede una motivazione")
         reference = _text(reference, 255)
+        previous = _snapshot_data(auth)
         auth.revoked_at, auth.revoked_by, auth.revoked_reason = datetime.utcnow(), actor, reason.strip()
         auth.revocation_reference = reference
         await self.db.flush()
+        await self._snapshot(auth, "revoke", actor, previous)
         await self.audit.log(tenant_id, "authorization", "revoke", entity_id=auth.id, actor_user_id=actor)
         return auth
 
@@ -540,7 +641,9 @@ class AuthorizationService(_Base):
             raise ComplianceNotFound("Autorizzazione non trovata")
         if auth.revoked_at is not None:
             raise ComplianceError("L'autorizzazione è revocata")
+        previous = _snapshot_data(auth)
         auth.last_reviewed_at, auth.last_reviewed_by = datetime.utcnow(), actor
         await self.db.flush()
+        await self._snapshot(auth, "review_confirmed", actor, previous)
         await self.audit.log(tenant_id, "authorization", "review_confirmed", entity_id=auth.id, actor_user_id=actor)
         return auth

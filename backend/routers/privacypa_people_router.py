@@ -27,6 +27,7 @@ from backend.db.database import get_db
 from backend.models.privacypa_assets import Asset
 from backend.models.privacypa_parties import Party
 from backend.models.privacypa_people import AssignmentStatus, Authorization, AuthorizationProfile
+from backend.models.privacypa_processing import ProcessingActivity
 from backend.services import privacypa_directory as directory
 from backend.services.privacypa_compliance_service import ComplianceError, ComplianceNotFound
 from backend.services.privacypa_people_service import AuthorizationService, TrainingService
@@ -455,6 +456,39 @@ async def list_authorizations(
                                                  asset_id=asset_id, active_only=active_only, include_future=include_future)
     visible = [a for a in rows if not a.processing_activity_id or scope.processing_visible(a.processing_activity_id)]
     return await _with_names(db, tenant_id, visible)
+
+
+@au_router.get("/person/{user_id}")
+async def person_authorizations(
+    user_id: str, as_of: date | None = None,
+    tenant_id: str = Depends(require_tenant), user: TokenPayload = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    """A cosa era abilitata una persona alla fine di un giorno (oggi se omesso) e in virtù di quali autorizzazioni."""
+    day = as_of or date.today()
+    scope = await build_scope(db, tenant_id, user)
+    entries = [e for e in await AuthorizationService(db).person_view(tenant_id, user_id, day)
+               if not e["values"].get("processing_activity_id") or scope.processing_visible(e["values"]["processing_activity_id"])]
+    asset_ids = {e["values"].get("asset_id") for e in entries} - {None}
+    processing_ids = {e["values"].get("processing_activity_id") for e in entries} - {None}
+    assets = dict((await db.execute(select(Asset.id, Asset.name).where(
+        Asset.tenant_id == tenant_id, Asset.id.in_(asset_ids)))).all()) if asset_ids else {}
+    activities = {a.id: f"{a.code} — {a.title}" for a in (await db.execute(select(ProcessingActivity).where(
+        ProcessingActivity.tenant_id == tenant_id, ProcessingActivity.id.in_(processing_ids)))).scalars()} if processing_ids else {}
+    for e in entries:
+        e["asset_name"] = assets.get(e["values"].get("asset_id"))
+        e["processing_name"] = activities.get(e["values"].get("processing_activity_id"))
+    return {"user_id": user_id, "as_of": day.isoformat(), "entries": entries}
+
+
+@au_router.get("/{auth_id}/history")
+async def authorization_history(
+    auth_id: str, tenant_id: str = Depends(require_tenant),
+    user: TokenPayload = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    """Le versioni dell'autorizzazione, dalla più vecchia."""
+    svc = AuthorizationService(db)
+    await _auth_guard(db, tenant_id, user, await svc.get(tenant_id, auth_id))
+    return [s.to_dict() for s in await svc.history(tenant_id, auth_id)]
 
 
 @au_router.post("", status_code=status.HTTP_201_CREATED)

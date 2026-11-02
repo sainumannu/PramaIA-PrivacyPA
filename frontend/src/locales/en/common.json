@@ -51,6 +51,7 @@
     "training": "Training",
     "trainingAssignments": "Training assignments",
     "authorizations": "Authorized persons",
+    "personAuthorizations": "Access by person",
     "authProfiles": "Authorization profiles",
     "dpo": "DPO workspace",
     "opinions": "DPO opinions",

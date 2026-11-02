@@ -20,6 +20,7 @@ import FindingsPage from './pages/FindingsPage';
 import NoticesPage from './pages/NoticesPage';
 import { AuditsPage, BreachesPage, CorrectiveActionsPage, LegalReferencesPage, RequestsPage } from './pages/WorkflowPages';
 import { AuthorizationProfilesPage, AuthorizationsPage, TrainingAssignmentsPage, TrainingCoursesPage } from './pages/PeoplePages';
+import PersonAuthorizationsPage from './pages/PersonAuthorizationsPage';
 import { AnnualReportPage, DpoWorkspacePage, OpinionsPage } from './pages/DpoPages';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { CustomFieldsPage, TagsPage } from './pages/AnnotationPages';
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="/formazione" element={<PrivateRoute><TrainingCoursesPage /></PrivateRoute>} />
             <Route path="/formazione/assegnazioni" element={<PrivateRoute><TrainingAssignmentsPage /></PrivateRoute>} />
             <Route path="/autorizzazioni" element={<PrivateRoute><AuthorizationsPage /></PrivateRoute>} />
+            <Route path="/autorizzazioni/persona" element={<PrivateRoute><PersonAuthorizationsPage /></PrivateRoute>} />
             <Route path="/profili-autorizzazione" element={<PrivateRoute><AuthorizationProfilesPage /></PrivateRoute>} />
             <Route path="/dpo" element={<PrivateRoute><DpoWorkspacePage /></PrivateRoute>} />
             <Route path="/pareri-dpo" element={<PrivateRoute><OpinionsPage /></PrivateRoute>} />

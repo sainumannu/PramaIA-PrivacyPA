@@ -6,6 +6,7 @@ import {
 import SchoolIcon from '@mui/icons-material/School';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import BadgeIcon from '@mui/icons-material/Badge';
+import { Link as RouterLink } from 'react-router-dom';
 import { PramaLayout } from '../components/PramaLayout';
 import {
   EntityCrudPage, FieldSpec, FormFields, StatusChip, Values, bodyFromValues, emptyFor, postAction, requiredMessage,
@@ -239,6 +240,9 @@ const AuthorizationDetail: React.FC<{ row: any; names: Record<string, string>; p
     <>
       <Line label={t('wf.fields.user_id')}>
         {person ? `${person.name}${person.email ? ` (${person.email})` : ''}${person.units.length ? ` — ${person.units.join(' · ')}` : ''}` : row.user_id}
+        <Button size="small" component={RouterLink} to={`/autorizzazioni/persona?user=${encodeURIComponent(row.user_id)}`} sx={{ ml: 1 }}>
+          {t('people.person_view.title')}
+        </Button>
       </Line>
       <Line label={t('wf.fields.authorization_profile_id')}>
         {names[row.authorization_profile_id] || row.authorization_profile_id}

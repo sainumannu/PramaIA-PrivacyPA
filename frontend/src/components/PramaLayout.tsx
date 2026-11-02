@@ -61,6 +61,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import SchoolIcon from '@mui/icons-material/School';
 import BadgeIcon from '@mui/icons-material/Badge';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import AssessmentIcon from '@mui/icons-material/Assessment';
@@ -139,6 +140,7 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
       { to: '/formazione', labelKey: 'navigation.training', icon: <SchoolIcon />, permission: 'training.view' },
       { to: '/formazione/assegnazioni', labelKey: 'navigation.trainingAssignments', icon: <BadgeIcon />, permission: 'training.view' },
       { to: '/autorizzazioni', labelKey: 'navigation.authorizations', icon: <VerifiedUserIcon />, permission: 'authorization.view' },
+      { to: '/autorizzazioni/persona', labelKey: 'navigation.personAuthorizations', icon: <ManageAccountsIcon />, permission: 'authorization.view' },
       { to: '/task', labelKey: 'navigation.tasks', icon: <TaskAltIcon />, permission: 'task.view' },
       { to: '/dpia', labelKey: 'navigation.dpia', icon: <PolicyIcon />, permission: 'dpia.view' },
       { to: '/trasferimenti', labelKey: 'navigation.transfers', icon: <PublicIcon />, permission: 'transfer.view' },

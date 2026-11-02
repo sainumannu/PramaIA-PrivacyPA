@@ -50,6 +50,7 @@ from backend.models.privacypa_people import (
     AnnualReport,
     Authorization,
     AuthorizationProfile,
+    AuthorizationSnapshot,
     DpoOpinion,
     TrainingAssignment,
     TrainingCompletion,
@@ -506,6 +507,7 @@ class DemoDataService:
 
     async def _reset_authorizations(self) -> int:
         tenant_id = self._tenant
+        await _delete_tenant(self.db, AuthorizationSnapshot, tenant_id)          # lo storico non conta come dato
         n = await _delete_tenant(self.db, Authorization, tenant_id)
         n += await _delete_tenant(self.db, AuthorizationProfile, tenant_id)
         return n

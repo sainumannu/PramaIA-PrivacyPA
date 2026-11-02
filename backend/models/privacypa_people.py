@@ -249,6 +249,30 @@ class Authorization(Base):
         }
 
 
+class AuthorizationSnapshot(Base):
+    """
+    Versione di un'autorizzazione dopo ogni concessione, modifica, revoca o conferma: ricostruisce cosa valeva a una
+    data passata anche se il record è cambiato. Immutabile. Contiene gli estremi, quindi non esce mai nell'outbox.
+    `baseline` = i valori trovati alla prima modifica di un'autorizzazione registrata prima che lo storico esistesse.
+    """
+
+    __tablename__ = "privacypa_authorization_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    authorization_id: Mapped[str] = mapped_column(String(36), ForeignKey("privacypa_authorizations.id"), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    actor_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    data: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id, "authorization_id": self.authorization_id, "action": self.action,
+            "actor_user_id": self.actor_user_id, "recorded_at": _iso(self.recorded_at), "data": self.data,
+        }
+
+
 # ---------------------------------------------------------------- pareri del DPO (§43)
 
 class OpinionStatus(str, enum.Enum):

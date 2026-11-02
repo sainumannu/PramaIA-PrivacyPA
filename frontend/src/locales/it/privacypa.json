@@ -1148,7 +1148,10 @@
       "authorization_date": "Data dell'autorizzazione",
       "authorization_notes": "Note sull'autorizzazione",
       "source_ref": "Origine",
-      "revocation_reference": "Estremi della revoca"
+      "revocation_reference": "Estremi della revoca",
+      "profile_version": "Versione del profilo",
+      "revoked_reason": "Motivo della revoca",
+      "last_reviewed_at": "Ultima verifica"
     },
     "actions": {
       "start": "Avvia",
@@ -1658,6 +1661,69 @@
       "external_group": "Persone esterne (anagrafica)",
       "add_external": "Persona esterna",
       "no_match": "Nessuno corrisponde: se è un esterno, registralo con «Persona esterna»."
+    },
+    "person_view": {
+      "title": "Abilitazioni per persona",
+      "subtitle": "A cosa è abilitata una persona, oggi o a una data passata, e in virtù di quali autorizzazioni. Si vedono i valori in vigore quel giorno, anche se poi sono cambiati.",
+      "as_of": "Alla data",
+      "as_of_hint": "Situazione a fine giornata",
+      "pick_person": "Scegliere una persona per vedere le sue abilitazioni.",
+      "heading": "{{name}} al {{date}}",
+      "valid": "Abilitazioni valide ({{count}})",
+      "none_valid": "Nessuna abilitazione valida a questa data.",
+      "others": "Altre autorizzazioni non valide a questa data ({{count}})",
+      "print": "Stampa",
+      "history": "Storico delle versioni",
+      "no_history": "Nessuna versione registrata.",
+      "no_reference": "Estremi mancanti",
+      "training_done_on": "Completata il {{date}}",
+      "registered_after": "Registrata il {{date}} con decorrenza retroattiva: si mostrano i valori con cui è stata registrata.",
+      "changed_after": "Modificata dopo questa data: si mostrano i valori di allora.",
+      "untracked": "Registrata prima dello storico delle versioni: eventuali modifiche precedenti non sono ricostruibili.",
+      "tracked_since": "Storico delle versioni disponibile dal {{date}}: per le date precedenti si mostrano i valori di quel giorno.",
+      "profile_changed": "Il profilo è stato modificato in seguito: versione attuale {{version}}.",
+      "revoked_on": "Revocata il {{date}} — motivo: {{reason}} — riferimento: {{reference}}",
+      "columns": {
+        "status": "Stato",
+        "system": "Sistema / trattamento",
+        "profile": "Profilo",
+        "operations": "Operazioni e ambito",
+        "period": "Validità",
+        "grounds": "Estremi",
+        "training": "Formazione richiesta"
+      },
+      "status": {
+        "ACTIVE": "Valida",
+        "NOT_STARTED": "Non ancora iniziata",
+        "EXPIRED": "Scaduta",
+        "REVOKED": "Revocata"
+      },
+      "training": {
+        "DONE": "completata",
+        "EXPIRED": "da rinnovare",
+        "MISSING": "mancante"
+      },
+      "action": {
+        "baseline": "Valori precedenti allo storico",
+        "create": "Concessa",
+        "update": "Modificata",
+        "revoke": "Revocata",
+        "review_confirmed": "Verifica confermata"
+      },
+      "csv": {
+        "status": "Stato",
+        "system": "Sistema",
+        "processing": "Trattamento",
+        "profile": "Profilo",
+        "operations": "Operazioni",
+        "valid_from": "Dal",
+        "valid_to": "Al",
+        "authorized_by": "Autorizzata da",
+        "reference": "Riferimento",
+        "authorization_date": "Data autorizzazione",
+        "source": "Origine",
+        "training": "Formazione"
+      }
     }
   },
   "opinions": {

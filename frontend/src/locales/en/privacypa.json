@@ -1148,7 +1148,10 @@
       "authorization_date": "Authorization date",
       "authorization_notes": "Authorization notes",
       "source_ref": "Source",
-      "revocation_reference": "Revocation reference"
+      "revocation_reference": "Revocation reference",
+      "profile_version": "Profile version",
+      "revoked_reason": "Revocation reason",
+      "last_reviewed_at": "Last review"
     },
     "actions": {
       "start": "Start",
@@ -1658,6 +1661,69 @@
       "external_group": "External individuals (registry)",
       "add_external": "External person",
       "no_match": "No match: if it is an outsider, register them with \"External person\"."
+    },
+    "person_view": {
+      "title": "Access by person",
+      "subtitle": "What a person is authorized to access, today or on a past date, and under which authorizations. Values are those in force on that day, even if they changed later.",
+      "as_of": "As of",
+      "as_of_hint": "Situation at the end of the day",
+      "pick_person": "Choose a person to see their access.",
+      "heading": "{{name}} as of {{date}}",
+      "valid": "Valid access ({{count}})",
+      "none_valid": "No valid access on this date.",
+      "others": "Other authorizations not valid on this date ({{count}})",
+      "print": "Print",
+      "history": "Version history",
+      "no_history": "No versions recorded.",
+      "no_reference": "Details missing",
+      "training_done_on": "Completed on {{date}}",
+      "registered_after": "Registered on {{date}} with a retroactive start: the values it was registered with are shown.",
+      "changed_after": "Changed after this date: the values in force then are shown.",
+      "untracked": "Registered before the version history existed: earlier changes cannot be reconstructed.",
+      "tracked_since": "Version history available since {{date}}: for earlier dates the values of that day are shown.",
+      "profile_changed": "The profile was changed later: current version {{version}}.",
+      "revoked_on": "Revoked on {{date}} — reason: {{reason}} — reference: {{reference}}",
+      "columns": {
+        "status": "Status",
+        "system": "System / processing",
+        "profile": "Profile",
+        "operations": "Operations and scope",
+        "period": "Validity",
+        "grounds": "Grounds",
+        "training": "Required training"
+      },
+      "status": {
+        "ACTIVE": "Valid",
+        "NOT_STARTED": "Not started yet",
+        "EXPIRED": "Expired",
+        "REVOKED": "Revoked"
+      },
+      "training": {
+        "DONE": "completed",
+        "EXPIRED": "to renew",
+        "MISSING": "missing"
+      },
+      "action": {
+        "baseline": "Values before the history",
+        "create": "Granted",
+        "update": "Changed",
+        "revoke": "Revoked",
+        "review_confirmed": "Review confirmed"
+      },
+      "csv": {
+        "status": "Status",
+        "system": "System",
+        "processing": "Processing",
+        "profile": "Profile",
+        "operations": "Operations",
+        "valid_from": "From",
+        "valid_to": "To",
+        "authorized_by": "Authorized by",
+        "reference": "Reference",
+        "authorization_date": "Authorization date",
+        "source": "Source",
+        "training": "Training"
+      }
     }
   },
   "opinions": {
