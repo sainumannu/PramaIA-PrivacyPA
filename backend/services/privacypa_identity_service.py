@@ -10,7 +10,7 @@ from backend.models.privacypa_identity import (
     ScopeType,
 )
 from backend.services.privacypa_audit_service import AuditService
-from backend.utils.request_context import is_service_account
+from backend.utils.request_context import get_active_role, is_service_account
 
 
 class IdentityService:
@@ -23,14 +23,18 @@ class IdentityService:
         return list(result.scalars().all())
 
     async def list_user_assignments(
-        self, tenant_id: str, user_id: str, *, active_only: bool = True
+        self, tenant_id: str, user_id: str, *, active_only: bool = True, all_roles: bool = False
     ) -> list[UserRoleAssignment]:
+        """Con un ruolo attivo nella richiesta (X-Active-Role) solo le assegnazioni di quel ruolo, salvo `all_roles`."""
         query = select(UserRoleAssignment).where(
             UserRoleAssignment.tenant_id == tenant_id,
             UserRoleAssignment.user_id == user_id,
         )
         result = await self.db.execute(query)
         assignments = list(result.scalars().all())
+        active_role = None if all_roles else get_active_role()
+        if active_role:
+            assignments = [a for a in assignments if a.role_code.value == active_role]
         if not active_only:
             return assignments
         now = datetime.utcnow()

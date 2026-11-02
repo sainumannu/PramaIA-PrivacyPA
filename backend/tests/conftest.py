@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.auth.portal_jwt import TokenPayload, get_current_user
 from backend.db.database import Base, get_db
+from backend.middleware.security import RequestContextMiddleware
 from backend.models import (  # noqa: F401
     privacypa_assessments,
     privacypa_annotations,
@@ -135,6 +136,7 @@ async def env(tmp_path, monkeypatch):
     ):
         app.include_router(module.router)
     register_error_handlers(app)
+    app.add_middleware(RequestContextMiddleware)        # request id e ruolo attivo (X-Active-Role), come in main.py
 
     async def override_db():
         async with maker() as session:

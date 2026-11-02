@@ -22,11 +22,17 @@ from backend.db.database import get_db
 from backend.models.privacypa_identity import PrivacyRoleCode, ScopeType
 from backend.services.privacypa_identity_service import IdentityService
 from backend.services.privacypa_organization_service import OrganizationService
-from backend.utils.request_context import on_behalf_of_var
+from backend.utils.request_context import get_active_role, on_behalf_of_var
+
+
+def is_portal_admin_by_token(user: TokenPayload) -> bool:
+    """Amministratore secondo il token del Portal, a prescindere dal ruolo con cui sta agendo."""
+    return user.tenant_role == "global_admin" or user.tenant_role == "admin"
 
 
 def is_portal_global_or_tenant_admin(user: TokenPayload) -> bool:
-    return user.tenant_role == "global_admin" or user.tenant_role == "admin"
+    """La scorciatoia degli amministratori; chi sceglie di agire con un ruolo (X-Active-Role) vi rinuncia."""
+    return is_portal_admin_by_token(user) and get_active_role() is None
 
 
 def tenant_of(user: TokenPayload) -> str:

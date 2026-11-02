@@ -1,4 +1,5 @@
 import { authGuard, redirectToPortal } from './authGuard';
+import { withActiveRole } from './activeRole';
 import { logger } from '../utils/logger';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -31,6 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string> || {}),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  withActiveRole(headers);
 
   const method = options.method || 'GET';
   const startTime = Date.now();
@@ -90,6 +92,7 @@ export const apiClient = {
     const token = authGuard.getToken();
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    withActiveRole(headers);
     const response = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: form });
     if (response.status === 401) {
       authGuard.clearSession();
@@ -107,6 +110,7 @@ export const apiClient = {
     const token = authGuard.getToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
+    withActiveRole(headers);
     const response = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
     if (response.status === 401) {
       authGuard.clearSession();
@@ -130,6 +134,7 @@ export const apiClient = {
     const token = authGuard.getToken();
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    withActiveRole(headers);
     const response = await fetch(`${BASE_URL}${path}`, { headers });
     if (!response.ok) throw new ApiError(response.status, 'Download failed');
     const blob = await response.blob();

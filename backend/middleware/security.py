@@ -14,9 +14,11 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from backend.utils.request_context import request_id_var
+from backend.models.privacypa_identity import PrivacyRoleCode
+from backend.utils.request_context import active_role_var, request_id_var
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+_ROLE_CODES = {r.value for r in PrivacyRoleCode}
 _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
 # CSP per le risposte JSON (§55.6): nessun contenuto va eseguito o mostrato, quindi si blocca tutto.
 _API_CSP = "default-src 'none'; frame-ancestors 'none'"
@@ -31,15 +33,20 @@ _FRONTEND_CSP = (
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Accetta un X-Request-ID ben formato dal proxy, altrimenti ne genera uno."""
+    """Accetta un X-Request-ID ben formato dal proxy, altrimenti ne genera uno; legge il ruolo attivo (X-Active-Role)."""
 
     async def dispatch(self, request: Request, call_next):
+        active_role = request.headers.get("X-Active-Role", "").strip().upper() or None
+        if active_role is not None and active_role not in _ROLE_CODES:
+            return JSONResponse(status_code=400, content={"detail": "Ruolo attivo non valido"})
         incoming = request.headers.get("X-Request-ID", "")
         request_id = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex
         token = request_id_var.set(request_id)
+        role_token = active_role_var.set(active_role)
         try:
             response = await call_next(request)
         finally:
+            active_role_var.reset(role_token)
             request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
         return response

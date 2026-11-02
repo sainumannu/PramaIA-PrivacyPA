@@ -71,6 +71,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 import { NotificationBell } from './NotificationBell';
 import { useTranslation } from '../i18n/useTranslation';
 import { usePermissions } from '../services/permissions';
+import { setActiveRole } from '../services/activeRole';
 import { useTenant } from '../services/tenantContext';
 
 const DRAWER_WIDTH = 272;
@@ -96,7 +97,12 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { can } = usePermissions();
+  const { can, activeRole, availableRoles, isPortalAdmin } = usePermissions();
+  const { t: tp } = useTranslation('privacypa');
+  // Il selettore serve solo se c'è davvero una scelta: più ruoli, o un amministratore che ha anche ruoli privacy.
+  const showRoleSelector = availableRoles.length > (isPortalAdmin ? 0 : 1);
+  // Chi agisce con un ruolo non amministrativo non vede gli strumenti riservati agli amministratori del Portal.
+  const actingAsAdmin = !activeRole || activeRole === 'SUPER_ADMIN' || activeRole === 'TENANT_ADMIN';
   const { selectedTenant, switchTenant, availableTenants, isLoadingTenants } = useTenant();
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchFailed, setSwitchFailed] = useState(false);
@@ -155,7 +161,7 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
       { to: '/verifiche', labelKey: 'navigation.findings', icon: <FindInPageIcon />, permission: 'finding.view' },
       { to: '/audit', labelKey: 'navigation.audit', icon: <HistoryIcon />, permission: 'audit.view' },
     ];
-    if (canAccessSettings()) {
+    if (canAccessSettings() && actingAsAdmin) {
       tools.push({ to: '/settings', labelKey: 'navigation.settings', icon: <SettingsIcon /> });
     }
     const visible = (items: NavItem[]) => items.filter((item) => !item.permission || can(item.permission));
@@ -164,7 +170,7 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
       { titleKey: 'navigation.section_entity', items: visible(entity) },
       { titleKey: 'navigation.section_tools', items: visible(tools) },
     ].filter((section) => section.items.length > 0);
-  }, [user, can]);
+  }, [user, can, actingAsAdmin]);
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -187,6 +193,25 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
           PrivacyPA
         </Typography>
       </Box>
+      {showRoleSelector && (
+        <Box sx={{ px: 2, pb: 1.5 }}>
+          <FormControl size="small" fullWidth>
+            <InputLabel id="active-role-label" shrink>{t('navigation.active_role')}</InputLabel>
+            <Select
+              labelId="active-role-label"
+              label={t('navigation.active_role')}
+              notched
+              displayEmpty
+              value={activeRole || ''}
+              onChange={(event) => setActiveRole(event.target.value || null)}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              <MenuItem value="">{t(isPortalAdmin ? 'navigation.active_role_admin' : 'navigation.active_role_all')}</MenuItem>
+              {availableRoles.map((role) => <MenuItem key={role} value={role}>{tp(`policy.roles.${role}`)}</MenuItem>)}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
       <Divider />
       <Box sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
         {sections.map((section) => (
@@ -292,7 +317,7 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
               sx={{ maxWidth: { xs: 120, sm: 220 } }}
             />
           )}
-          {user?.is_admin && (
+          {user?.is_admin && !activeRole && (
             <Chip label="Admin" size="small" color="primary" sx={{ height: 20, fontSize: '0.65rem' }} />
           )}
 

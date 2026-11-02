@@ -47,7 +47,7 @@ async def get_user_roles(
             detail="Non autorizzato a visualizzare i ruoli di un altro utente",
         )
     svc = IdentityService(db)
-    assignments = await svc.list_user_assignments(tenant_id, user_id)
+    assignments = await svc.list_user_assignments(tenant_id, user_id, all_roles=True)
     return [a.to_dict() for a in assignments]
 
 

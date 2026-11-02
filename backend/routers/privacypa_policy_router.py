@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth.portal_jwt import TokenPayload, get_current_user
 from backend.auth.privacypa_authz import (
     get_accessible_unit_ids,
+    is_portal_admin_by_token,
     is_portal_global_or_tenant_admin,
     require_tenant,
 )
@@ -34,6 +35,7 @@ from backend.services.privacypa_policy_service import (
     get_segregation,
 )
 from backend.utils.concurrency import require_if_match
+from backend.utils.request_context import get_active_role
 
 router = APIRouter(prefix="/api/privacypa", tags=["PrivacyPA - Policy"])
 
@@ -109,10 +111,13 @@ async def my_permissions(
     user: TokenPayload = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Permessi effettivi dell'utente: `allowed`, se valgono sull'intero ente e, altrimenti, su quali strutture."""
+    """
+    Permessi effettivi dell'utente: `allowed`, se valgono sull'intero ente e, altrimenti, su quali strutture.
+    Con un ruolo attivo (X-Active-Role) sono quelli di quel ruolo; `available_roles` elenca i ruoli tra cui scegliere.
+    """
     user_id = user.sub or user.email
     admin = is_portal_global_or_tenant_admin(user)
-    assignments = await IdentityService(db).list_user_assignments(tenant_id, user_id, active_only=True)
+    assignments = await IdentityService(db).list_user_assignments(tenant_id, user_id, active_only=True, all_roles=True)
     policy = await get_policy(db, tenant_id)
     overrides = (policy.permission_overrides if policy else None) or {}
 
@@ -135,6 +140,9 @@ async def my_permissions(
         "user_id": user_id,
         "tenant_id": tenant_id,
         "is_admin": admin,
+        "is_portal_admin": is_portal_admin_by_token(user),
+        "active_role": get_active_role(),
+        "available_roles": sorted({a.role_code.value for a in assignments}),
         "assignments": [a.to_dict() for a in assignments],
         "permissions": permissions,
     }

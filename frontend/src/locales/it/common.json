@@ -14,6 +14,9 @@
     "theme_blue": "Blu"
   },
   "navigation": {
+    "active_role": "Agisci come",
+    "active_role_all": "Tutti i miei ruoli",
+    "active_role_admin": "Amministratore (tutti i permessi)",
     "home": "Home",
     "settings": "Impostazioni",
     "organization": "Organizzazione",
