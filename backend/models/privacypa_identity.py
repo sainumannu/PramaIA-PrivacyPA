@@ -9,7 +9,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum as SAEnum, UniqueConstraint
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.database import Base
@@ -94,6 +94,7 @@ class UserRoleAssignment(Base):
 
     granted_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     granted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
 
     role: Mapped["PrivacyRoleCatalog"] = relationship()
 
@@ -103,6 +104,7 @@ class UserRoleAssignment(Base):
             name="uix_privacypa_user_role_scope",
         ),
     )
+    __mapper_args__ = {"version_id_col": row_version}
 
     def to_dict(self) -> dict:
         return {
@@ -116,4 +118,5 @@ class UserRoleAssignment(Base):
             "valid_to": self.valid_to.isoformat() if self.valid_to else None,
             "granted_by": self.granted_by,
             "granted_at": self.granted_at.isoformat() if self.granted_at else None,
+            "row_version": self.row_version,
         }

@@ -55,7 +55,8 @@
     },
     "roles": {
       "catalog_title": "Privacy role catalog",
-      "assignments_title": "User assignments",
+      "assignments_title": "Who has which role",
+      "assign_title": "Assign a role",
       "code": "Code",
       "name": "Name",
       "description": "Description",
@@ -86,7 +87,27 @@
         "UNIT": "The role applies to the selected unit only.",
         "SUBTREE": "The role applies to the selected unit and to the units below it."
       },
-      "user_hint": "Choose from the Portal org chart; for a service account type the identifier (e.g. app:pramaia-helpdesk)."
+      "user_hint": "Choose from the Portal org chart; for a service account type the identifier (e.g. app:pramaia-helpdesk).",
+      "valid_to": "Expiry",
+      "valid_to_hint": "Optional: the role is valid until the end of that day, then it no longer grants access.",
+      "no_expiry": "None",
+      "expired": "Expired",
+      "no_view_permission": "Seeing who has which role requires the permission to view roles (Roles module in the Policy; by default: privacy administrators).",
+      "filter_person": "Search person",
+      "filter_all": "All",
+      "filter_unit": "Unit",
+      "filter_state": "Status",
+      "state": {
+        "ALL": "All",
+        "VALID": "Valid",
+        "EXPIRED": "Expired"
+      },
+      "count": "{{shown}} of {{total}} assignments",
+      "confirm_revoke_of": "Revoke the {{role}} role from {{name}}?",
+      "edit_title": "Edit assignment",
+      "edit_hint": "You can change scope, unit and expiry. To change the person or the role, revoke the assignment and create a new one.",
+      "updated": "Assignment updated",
+      "update_failed": "Update failed"
     }
   },
   "dashboard": {

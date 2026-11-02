@@ -20,7 +20,9 @@ import {
   Select,
   MenuItem,
   FormControl,
+  Button,
 } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -158,6 +160,20 @@ export const UsersPanel: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Il team non regola i permessi di PrivacyPA: senza questo avviso sembra il posto dove si profilano gli utenti */}
+      <Alert
+        severity="warning"
+        sx={{ mb: 3 }}
+        action={
+          <Button color="inherit" size="small" component={RouterLink} to="/organizzazione?tab=roles">
+            Apri Ruoli privacy
+          </Button>
+        }
+      >
+        I ruoli del team (Utente, Operatore, Admin) non stabiliscono cosa una persona vede o fa in PrivacyManager.
+        I permessi dipendono dai ruoli privacy, che si assegnano in Organizzazione → Ruoli privacy.
+      </Alert>
+
       {/* Team Members attivi */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>

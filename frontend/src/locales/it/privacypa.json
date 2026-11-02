@@ -55,7 +55,8 @@
     },
     "roles": {
       "catalog_title": "Catalogo ruoli privacy",
-      "assignments_title": "Assegnazioni utente",
+      "assignments_title": "Chi ha quale ruolo",
+      "assign_title": "Assegna un ruolo",
       "code": "Codice",
       "name": "Nome",
       "description": "Descrizione",
@@ -86,7 +87,27 @@
         "UNIT": "Il ruolo vale solo per la struttura indicata.",
         "SUBTREE": "Il ruolo vale per la struttura indicata e per quelle che ne dipendono."
       },
-      "user_hint": "Scegliere dall'organigramma del Portal; per un account di servizio scrivere l'identificativo (es. app:pramaia-helpdesk)."
+      "user_hint": "Scegliere dall'organigramma del Portal; per un account di servizio scrivere l'identificativo (es. app:pramaia-helpdesk).",
+      "valid_to": "Scadenza",
+      "valid_to_hint": "Facoltativa: il ruolo vale fino a fine giornata, poi non dà più accesso.",
+      "no_expiry": "Nessuna",
+      "expired": "Scaduto",
+      "no_view_permission": "Per vedere chi ha quale ruolo serve il permesso di vedere i ruoli (modulo Ruoli nella Policy; di default: amministratori privacy).",
+      "filter_person": "Cerca persona",
+      "filter_all": "Tutti",
+      "filter_unit": "Struttura",
+      "filter_state": "Stato",
+      "state": {
+        "ALL": "Tutti",
+        "VALID": "Validi",
+        "EXPIRED": "Scaduti"
+      },
+      "count": "{{shown}} di {{total}} assegnazioni",
+      "confirm_revoke_of": "Revocare il ruolo {{role}} a {{name}}?",
+      "edit_title": "Modifica assegnazione",
+      "edit_hint": "Si cambiano ambito, struttura e scadenza. Per cambiare persona o ruolo, revocare l'assegnazione e farne una nuova.",
+      "updated": "Assegnazione aggiornata",
+      "update_failed": "Aggiornamento fallito"
     }
   },
   "dashboard": {
