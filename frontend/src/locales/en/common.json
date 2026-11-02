@@ -60,7 +60,16 @@
     "tags": "Tags",
     "customFields": "Custom fields",
     "query": "Queries",
-    "webhooks": "Webhooks"
+    "webhooks": "Webhooks",
+    "group_register": "Register and assessments",
+    "group_parties": "Systems and external parties",
+    "group_people": "People and authorizations",
+    "group_documents": "Documents and notices",
+    "group_events": "Requests and breaches",
+    "group_controls": "Controls and audits",
+    "group_dpo": "DPO",
+    "group_configuration": "Configuration",
+    "group_integrations": "Import and integrations"
   },
   "actions": {
     "save": "Save",

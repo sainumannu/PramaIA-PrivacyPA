@@ -60,7 +60,16 @@
     "tags": "Tag",
     "customFields": "Campi personalizzati",
     "query": "Interrogazioni",
-    "webhooks": "Webhook"
+    "webhooks": "Webhook",
+    "group_register": "Registro e valutazioni",
+    "group_parties": "Sistemi e soggetti esterni",
+    "group_people": "Persone e autorizzazioni",
+    "group_documents": "Documenti e informative",
+    "group_events": "Richieste e violazioni",
+    "group_controls": "Controlli e audit",
+    "group_dpo": "DPO",
+    "group_configuration": "Configurazione",
+    "group_integrations": "Import e integrazioni"
   },
   "actions": {
     "save": "Salva",

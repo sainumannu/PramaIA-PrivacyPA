@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPortalUrl } from '../services/runtimeConfig';
 import {
@@ -20,6 +20,7 @@ import {
   ListItemText,
   ListSubheader,
   Divider,
+  Collapse,
   Snackbar,
   Alert,
   useMediaQuery,
@@ -65,6 +66,8 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { authGuard, canAccessSettings } from '../services/authGuard';
 import { useThemeContext } from '../shared/ThemeProvider';
 import { ThemeName, themeOptions } from '../shared/theme';
@@ -88,6 +91,31 @@ interface NavItem {
   icon: React.ReactNode;
   permission?: string;
 }
+
+interface NavGroup {
+  group: string;
+  labelKey: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+}
+
+type NavEntry = NavItem | NavGroup;
+
+const isGroup = (entry: NavEntry): entry is NavGroup => 'group' in entry;
+
+const OPEN_GROUPS_KEY = 'privacypa_nav_open_groups';
+
+const readOpenGroups = (): string[] => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(OPEN_GROUPS_KEY) || '[]');
+    return Array.isArray(stored) ? stored : [];
+  } catch {
+    return [];
+  }
+};
+
+const matchesPath = (to: string, pathname: string) =>
+  to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
 
 export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle }) => {
   const user = authGuard.getCurrentUser();
@@ -120,61 +148,213 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
   };
 
   const sections = useMemo(() => {
-    const work: NavItem[] = [
+    const work: NavEntry[] = [
       { to: '/', labelKey: 'navigation.home', icon: <DashboardIcon /> },
-      { to: '/registro', labelKey: 'navigation.register', icon: <AssignmentIcon />, permission: 'processing.view' },
-      { to: '/approvazioni', labelKey: 'navigation.approvals', icon: <FactCheckIcon />, permission: 'approval.view' },
-      { to: '/progetti', labelKey: 'navigation.projects', icon: <RocketLaunchIcon />, permission: 'project.view' },
-      { to: '/sistemi', labelKey: 'navigation.systems', icon: <DnsIcon />, permission: 'asset.view' },
-      { to: '/fornitori', labelKey: 'navigation.suppliers', icon: <BusinessIcon />, permission: 'party.view' },
-      { to: '/filiera', labelKey: 'navigation.supply', icon: <LinkIcon />, permission: 'party.view' },
-      { to: '/documenti', labelKey: 'navigation.documents', icon: <DescriptionIcon />, permission: 'document.view' },
-      { to: '/informative', labelKey: 'navigation.notices', icon: <ArticleIcon />, permission: 'notice.view' },
-      { to: '/richieste', labelKey: 'navigation.requests', icon: <PersonSearchIcon />, permission: 'dsr.view' },
-      { to: '/violazioni', labelKey: 'navigation.breaches', icon: <ReportIcon />, permission: 'breach.view' },
-      { to: '/azioni', labelKey: 'navigation.actions', icon: <BuildIcon />, permission: 'action.view' },
-      { to: '/audit-programmati', labelKey: 'navigation.audits', icon: <FactCheckOutlinedIcon />, permission: 'auditplan.view' },
-      { to: '/dpo', labelKey: 'navigation.dpo', icon: <SupervisorAccountIcon />, permission: 'dpo.view' },
-      { to: '/pareri-dpo', labelKey: 'navigation.opinions', icon: <RateReviewIcon />, permission: 'opinion.view' },
-      { to: '/relazione-annuale', labelKey: 'navigation.annualReport', icon: <AssessmentIcon />, permission: 'report.view' },
-      { to: '/formazione', labelKey: 'navigation.training', icon: <SchoolIcon />, permission: 'training.view' },
-      { to: '/formazione/assegnazioni', labelKey: 'navigation.trainingAssignments', icon: <BadgeIcon />, permission: 'training.view' },
-      { to: '/autorizzazioni', labelKey: 'navigation.authorizations', icon: <VerifiedUserIcon />, permission: 'authorization.view' },
-      { to: '/autorizzazioni/persona', labelKey: 'navigation.personAuthorizations', icon: <ManageAccountsIcon />, permission: 'authorization.view' },
       { to: '/task', labelKey: 'navigation.tasks', icon: <TaskAltIcon />, permission: 'task.view' },
-      { to: '/dpia', labelKey: 'navigation.dpia', icon: <PolicyIcon />, permission: 'dpia.view' },
-      { to: '/trasferimenti', labelKey: 'navigation.transfers', icon: <PublicIcon />, permission: 'transfer.view' },
-      { to: '/rischi', labelKey: 'navigation.risks', icon: <ReportProblemIcon />, permission: 'risk.view' },
+      { to: '/approvazioni', labelKey: 'navigation.approvals', icon: <FactCheckIcon />, permission: 'approval.view' },
+      {
+        group: 'register',
+        labelKey: 'navigation.group_register',
+        icon: <AssignmentIcon />,
+        items: [
+          { to: '/registro', labelKey: 'navigation.register', icon: <AssignmentIcon />, permission: 'processing.view' },
+          { to: '/progetti', labelKey: 'navigation.projects', icon: <RocketLaunchIcon />, permission: 'project.view' },
+          { to: '/dpia', labelKey: 'navigation.dpia', icon: <PolicyIcon />, permission: 'dpia.view' },
+          { to: '/trasferimenti', labelKey: 'navigation.transfers', icon: <PublicIcon />, permission: 'transfer.view' },
+          { to: '/rischi', labelKey: 'navigation.risks', icon: <ReportProblemIcon />, permission: 'risk.view' },
+        ],
+      },
+      {
+        group: 'parties',
+        labelKey: 'navigation.group_parties',
+        icon: <DnsIcon />,
+        items: [
+          { to: '/sistemi', labelKey: 'navigation.systems', icon: <DnsIcon />, permission: 'asset.view' },
+          { to: '/fornitori', labelKey: 'navigation.suppliers', icon: <BusinessIcon />, permission: 'party.view' },
+          { to: '/filiera', labelKey: 'navigation.supply', icon: <LinkIcon />, permission: 'party.view' },
+        ],
+      },
+      {
+        group: 'people',
+        labelKey: 'navigation.group_people',
+        icon: <VerifiedUserIcon />,
+        items: [
+          { to: '/autorizzazioni', labelKey: 'navigation.authorizations', icon: <VerifiedUserIcon />, permission: 'authorization.view' },
+          { to: '/autorizzazioni/persona', labelKey: 'navigation.personAuthorizations', icon: <ManageAccountsIcon />, permission: 'authorization.view' },
+          { to: '/profili-autorizzazione', labelKey: 'navigation.authProfiles', icon: <BadgeIcon />, permission: 'authorization.view' },
+          { to: '/formazione', labelKey: 'navigation.training', icon: <SchoolIcon />, permission: 'training.view' },
+          { to: '/formazione/assegnazioni', labelKey: 'navigation.trainingAssignments', icon: <SchoolIcon />, permission: 'training.view' },
+        ],
+      },
+      {
+        group: 'documents',
+        labelKey: 'navigation.group_documents',
+        icon: <DescriptionIcon />,
+        items: [
+          { to: '/documenti', labelKey: 'navigation.documents', icon: <DescriptionIcon />, permission: 'document.view' },
+          { to: '/informative', labelKey: 'navigation.notices', icon: <ArticleIcon />, permission: 'notice.view' },
+        ],
+      },
+      {
+        group: 'events',
+        labelKey: 'navigation.group_events',
+        icon: <ReportIcon />,
+        items: [
+          { to: '/richieste', labelKey: 'navigation.requests', icon: <PersonSearchIcon />, permission: 'dsr.view' },
+          { to: '/violazioni', labelKey: 'navigation.breaches', icon: <ReportIcon />, permission: 'breach.view' },
+        ],
+      },
+      {
+        group: 'controls',
+        labelKey: 'navigation.group_controls',
+        icon: <FactCheckOutlinedIcon />,
+        items: [
+          { to: '/audit-programmati', labelKey: 'navigation.audits', icon: <FactCheckOutlinedIcon />, permission: 'auditplan.view' },
+          { to: '/verifiche', labelKey: 'navigation.findings', icon: <FindInPageIcon />, permission: 'finding.view' },
+          { to: '/azioni', labelKey: 'navigation.actions', icon: <BuildIcon />, permission: 'action.view' },
+        ],
+      },
+      {
+        group: 'dpo',
+        labelKey: 'navigation.group_dpo',
+        icon: <SupervisorAccountIcon />,
+        items: [
+          { to: '/dpo', labelKey: 'navigation.dpo', icon: <SupervisorAccountIcon />, permission: 'dpo.view' },
+          { to: '/pareri-dpo', labelKey: 'navigation.opinions', icon: <RateReviewIcon />, permission: 'opinion.view' },
+          { to: '/relazione-annuale', labelKey: 'navigation.annualReport', icon: <AssessmentIcon />, permission: 'report.view' },
+        ],
+      },
     ];
-    const entity: NavItem[] = [
+    const entity: NavEntry[] = [
       { to: '/organizzazione', labelKey: 'navigation.organization', icon: <AccountTreeIcon /> },
-      { to: '/cataloghi', labelKey: 'navigation.catalogs', icon: <MenuBookIcon /> },
-      { to: '/tag', labelKey: 'navigation.tags', icon: <LocalOfferIcon />, permission: 'tag.view' },
-      { to: '/campi-custom', labelKey: 'navigation.customFields', icon: <TuneIcon />, permission: 'customfield.view' },
-      { to: '/riferimenti', labelKey: 'navigation.legalref', icon: <GavelIcon />, permission: 'legalref.view' },
-      { to: '/profili-autorizzazione', labelKey: 'navigation.authProfiles', icon: <VerifiedUserIcon />, permission: 'authorization.view' },
-      { to: '/import', labelKey: 'navigation.import', icon: <UploadFileIcon />, permission: 'import.create' },
       { to: '/policy', labelKey: 'navigation.policy', icon: <AdminPanelSettingsIcon />, permission: 'policy.administer' },
-      { to: '/webhook', labelKey: 'navigation.webhooks', icon: <WebhookIcon />, permission: 'webhook.view' },
+      { to: '/riferimenti', labelKey: 'navigation.legalref', icon: <GavelIcon />, permission: 'legalref.view' },
+      {
+        group: 'configuration',
+        labelKey: 'navigation.group_configuration',
+        icon: <TuneIcon />,
+        items: [
+          { to: '/cataloghi', labelKey: 'navigation.catalogs', icon: <MenuBookIcon /> },
+          { to: '/tag', labelKey: 'navigation.tags', icon: <LocalOfferIcon />, permission: 'tag.view' },
+          { to: '/campi-custom', labelKey: 'navigation.customFields', icon: <TuneIcon />, permission: 'customfield.view' },
+        ],
+      },
+      {
+        group: 'integrations',
+        labelKey: 'navigation.group_integrations',
+        icon: <WebhookIcon />,
+        items: [
+          { to: '/import', labelKey: 'navigation.import', icon: <UploadFileIcon />, permission: 'import.create' },
+          { to: '/webhook', labelKey: 'navigation.webhooks', icon: <WebhookIcon />, permission: 'webhook.view' },
+        ],
+      },
     ];
-    const tools: NavItem[] = [
+    const tools: NavEntry[] = [
       { to: '/ricerca', labelKey: 'navigation.search', icon: <SearchIcon /> },
       { to: '/interrogazioni', labelKey: 'navigation.query', icon: <ManageSearchIcon />, permission: 'query.view' },
-      { to: '/verifiche', labelKey: 'navigation.findings', icon: <FindInPageIcon />, permission: 'finding.view' },
       { to: '/audit', labelKey: 'navigation.audit', icon: <HistoryIcon />, permission: 'audit.view' },
     ];
     if (canAccessSettings() && actingAsAdmin) {
       tools.push({ to: '/settings', labelKey: 'navigation.settings', icon: <SettingsIcon /> });
     }
-    const visible = (items: NavItem[]) => items.filter((item) => !item.permission || can(item.permission));
+    const allowed = (item: NavItem) => !item.permission || can(item.permission);
+    // Un gruppo rimasto con una sola voce visibile si mostra come voce semplice.
+    const visible = (entries: NavEntry[]): NavEntry[] =>
+      entries.flatMap((entry): NavEntry[] => {
+        if (!isGroup(entry)) return allowed(entry) ? [entry] : [];
+        const items = entry.items.filter(allowed);
+        if (items.length === 0) return [];
+        return items.length === 1 ? items : [{ ...entry, items }];
+      });
     return [
-      { titleKey: 'navigation.section_work', items: visible(work) },
-      { titleKey: 'navigation.section_entity', items: visible(entity) },
-      { titleKey: 'navigation.section_tools', items: visible(tools) },
-    ].filter((section) => section.items.length > 0);
+      { titleKey: 'navigation.section_work', entries: visible(work) },
+      { titleKey: 'navigation.section_entity', entries: visible(entity) },
+      { titleKey: 'navigation.section_tools', entries: visible(tools) },
+    ].filter((section) => section.entries.length > 0);
   }, [user, can, actingAsAdmin]);
 
+  // Evidenzia solo la voce più specifica: su /formazione/assegnazioni non si accende anche /formazione.
+  const activePath = useMemo(() => {
+    const paths = sections
+      .flatMap((section) => section.entries.flatMap((entry) => (isGroup(entry) ? entry.items : [entry])))
+      .map((item) => item.to)
+      .filter((to) => matchesPath(to, location.pathname));
+    return paths.sort((a, b) => b.length - a.length)[0];
+  }, [sections, location.pathname]);
+
+  const [openGroups, setOpenGroups] = useState<string[]>(readOpenGroups);
+  const toggleGroup = (group: string) => {
+    setOpenGroups((current) => {
+      const next = current.includes(group) ? current.filter((g) => g !== group) : [...current, group];
+      try {
+        localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify(next));
+      } catch {
+        // La preferenza resta solo per questa sessione.
+      }
+      return next;
+    });
+  };
+
+  // Il gruppo della pagina corrente si apre da solo, anche arrivando da un link interno.
+  useEffect(() => {
+    const current = sections
+      .flatMap((section) => section.entries)
+      .find((entry) => isGroup(entry) && entry.items.some((item) => item.to === activePath));
+    if (current && isGroup(current) && !openGroups.includes(current.group)) {
+      toggleGroup(current.group);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath]);
+
   const closeMobile = () => setMobileOpen(false);
+
+  const itemSx = {
+    mx: 1,
+    mb: 0.25,
+    borderRadius: 1.5,
+    '&.Mui-selected': {
+      backgroundColor: 'rgba(16, 185, 129, 0.16)',
+      color: 'primary.main',
+      '& .MuiListItemIcon-root': { color: 'primary.main' },
+    },
+  };
+
+  const renderItem = (item: NavItem, nested = false) => (
+    <ListItemButton
+      key={item.to}
+      component={NavLink}
+      to={item.to}
+      end={item.to === '/'}
+      onClick={closeMobile}
+      selected={item.to === activePath}
+      sx={nested ? { ...itemSx, pl: 4.5 } : itemSx}
+    >
+      <ListItemIcon sx={{ minWidth: 36, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
+      <ListItemText primary={t(item.labelKey)} primaryTypographyProps={{ fontSize: nested ? '0.85rem' : '0.9rem', fontWeight: 500 }} />
+    </ListItemButton>
+  );
+
+  const renderGroup = (entry: NavGroup) => {
+    const open = openGroups.includes(entry.group);
+    const containsActive = entry.items.some((item) => item.to === activePath);
+    return (
+      <React.Fragment key={entry.group}>
+        <ListItemButton onClick={() => toggleGroup(entry.group)} aria-expanded={open} sx={itemSx}>
+          <ListItemIcon sx={{ minWidth: 36, color: containsActive ? 'primary.main' : 'text.secondary' }}>{entry.icon}</ListItemIcon>
+          <ListItemText
+            primary={t(entry.labelKey)}
+            primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: containsActive ? 700 : 500 }}
+          />
+          {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+        </ListItemButton>
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List dense disablePadding>
+            {entry.items.map((item) => renderItem(item, true))}
+          </List>
+        </Collapse>
+      </React.Fragment>
+    );
+  };
 
   const drawer = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -229,33 +409,7 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
               </ListSubheader>
             }
           >
-            {section.items.map((item) => (
-              <ListItemButton
-                key={item.to}
-                component={NavLink}
-                to={item.to}
-                end={item.to === '/'}
-                onClick={closeMobile}
-                selected={
-                  item.to === '/'
-                    ? location.pathname === '/'
-                    : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
-                }
-                sx={{
-                  mx: 1,
-                  mb: 0.25,
-                  borderRadius: 1.5,
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(16, 185, 129, 0.16)',
-                    color: 'primary.main',
-                    '& .MuiListItemIcon-root': { color: 'primary.main' },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: 'text.secondary' }}>{item.icon}</ListItemIcon>
-                <ListItemText primary={t(item.labelKey)} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} />
-              </ListItemButton>
-            ))}
+            {section.entries.map((entry) => (isGroup(entry) ? renderGroup(entry) : renderItem(entry)))}
           </List>
         ))}
       </Box>
