@@ -10,7 +10,25 @@ from backend.models.privacypa_identity import (
     ScopeType,
 )
 from backend.services.privacypa_audit_service import AuditService
-from backend.utils.request_context import get_active_role, is_service_account
+from backend.utils.request_context import active_role_binding, is_service_account
+
+# Ruoli degli account di servizio: un amministratore non li sceglie come ruolo attivo.
+_SERVICE_ROLES = {PrivacyRoleCode.INTEGRATION.value, PrivacyRoleCode.INTEGRATION_HELPDESK.value}
+
+
+def _virtual_assignment(tenant_id: str, user_id: str, role_code: str) -> UserRoleAssignment:
+    """Ruolo scelto da un amministratore del Portal senza averlo assegnato: vale sull'intero ente, non si salva."""
+    return UserRoleAssignment(
+        id=f"active-role:{role_code}", tenant_id=tenant_id, user_id=user_id, role_code=PrivacyRoleCode(role_code),
+        scope_type=ScopeType.TENANT, organizational_unit_id=None, valid_from=datetime(2000, 1, 1), granted_by=user_id,
+    )
+
+
+def selectable_roles(portal_admin: bool, assigned: set[str]) -> list[str]:
+    """Ruoli tra cui si sceglie il ruolo attivo: i propri, o per un amministratore del Portal tutti i ruoli privacy."""
+    if portal_admin:
+        return [r.value for r in PrivacyRoleCode if r.value not in _SERVICE_ROLES]
+    return sorted(assigned)
 
 
 class IdentityService:
@@ -23,18 +41,25 @@ class IdentityService:
         return list(result.scalars().all())
 
     async def list_user_assignments(
-        self, tenant_id: str, user_id: str, *, active_only: bool = True, all_roles: bool = False
+        self, tenant_id: str, user_id: str, *, active_only: bool = True, all_roles: bool = False,
+        real_only: bool = False,
     ) -> list[UserRoleAssignment]:
-        """Con un ruolo attivo nella richiesta (X-Active-Role) solo le assegnazioni di quel ruolo, salvo `all_roles`."""
+        """
+        Con un ruolo attivo nella richiesta (X-Active-Role) le assegnazioni del richiedente si limitano a quel ruolo,
+        salvo `all_roles`. Un amministratore del Portal che sceglie un ruolo non assegnato lo esercita sull'intero
+        ente (assegnazione virtuale, mai salvata), salvo `real_only` (atti che non si delegano, es. il parere del DPO).
+        """
         query = select(UserRoleAssignment).where(
             UserRoleAssignment.tenant_id == tenant_id,
             UserRoleAssignment.user_id == user_id,
         )
         result = await self.db.execute(query)
         assignments = list(result.scalars().all())
-        active_role = None if all_roles else get_active_role()
-        if active_role:
-            assignments = [a for a in assignments if a.role_code.value == active_role]
+        active = None if all_roles else active_role_binding()
+        if active is not None and active.user_id in (None, user_id):
+            assignments = [a for a in assignments if a.role_code.value == active.code]
+            if not assignments and not real_only and active.portal_admin and active.code not in _SERVICE_ROLES:
+                assignments = [_virtual_assignment(tenant_id, user_id, active.code)]
         if not active_only:
             return assignments
         now = datetime.utcnow()

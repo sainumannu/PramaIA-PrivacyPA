@@ -135,6 +135,7 @@ async def get_accessible_unit_ids(
     user_id: str,
     is_privileged: bool,
     roles: Iterable[PrivacyRoleCode] | None = None,
+    real_only: bool = False,
 ) -> set[str] | None:
     """
     Calcola l'insieme di organizational_unit_id visibili all'utente in base
@@ -152,7 +153,7 @@ async def get_accessible_unit_ids(
 
     identity_svc = IdentityService(db)
     org_svc = OrganizationService(db)
-    assignments = await identity_svc.list_user_assignments(tenant_id, user_id, active_only=True)
+    assignments = await identity_svc.list_user_assignments(tenant_id, user_id, active_only=True, real_only=real_only)
     if roles is not None:
         allowed_roles = set(roles)
         assignments = [a for a in assignments if a.role_code in allowed_roles]
@@ -178,10 +179,11 @@ async def assert_effective_role(
 ) -> None:
     """
     Come `assert_role_for_unit` ma senza la scorciatoia degli amministratori del Portal: serve un'assegnazione
-    di ruolo reale che copra la struttura. Per atti che non si delegano (es. il parere del DPO).
+    di ruolo reale che copra la struttura. Per atti che non si delegano (es. il parere del DPO): non bastano
+    neppure il ruolo scelto da un amministratore senza averlo assegnato.
     """
     tenant_id = tenant_of(user)
-    accessible = await get_accessible_unit_ids(db, tenant_id, user.sub or user.email, False, roles=role_codes)
+    accessible = await get_accessible_unit_ids(db, tenant_id, user.sub or user.email, False, roles=role_codes, real_only=True)
     if accessible is None or (unit_id and unit_id in accessible):
         return
     raise HTTPException(

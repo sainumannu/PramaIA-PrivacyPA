@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from backend.auth.portal_jwt import TokenPayload, get_current_user
 from backend.db.database import Base, get_db
 from backend.middleware.security import RequestContextMiddleware
+from backend.utils.request_context import bind_active_role
 from backend.models import (  # noqa: F401
     privacypa_assessments,
     privacypa_annotations,
@@ -148,7 +149,9 @@ async def env(tmp_path, monkeypatch):
                 raise
 
     def override_user(request: Request) -> TokenPayload:
-        return TokenPayload(json.loads(request.headers["X-Test-User"]))
+        user = TokenPayload(json.loads(request.headers["X-Test-User"]))
+        bind_active_role(user.sub or user.email, user.tenant_role in ("global_admin", "admin"))     # come get_current_user
+        return user
 
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = override_user

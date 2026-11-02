@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.models.privacypa_identity import PrivacyRoleCode
-from backend.utils.request_context import active_role_var, request_id_var
+from backend.utils.request_context import ActiveRole, active_role_var, request_id_var
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 _ROLE_CODES = {r.value for r in PrivacyRoleCode}
@@ -42,7 +42,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         incoming = request.headers.get("X-Request-ID", "")
         request_id = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex
         token = request_id_var.set(request_id)
-        role_token = active_role_var.set(active_role)
+        role_token = active_role_var.set(ActiveRole(active_role) if active_role else None)
         try:
             response = await call_next(request)
         finally:

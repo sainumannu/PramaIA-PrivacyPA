@@ -27,7 +27,7 @@ from backend.auth.privacypa_permissions import (
 )
 from backend.db.database import get_db
 from backend.models.privacypa_identity import PrivacyRoleCode
-from backend.services.privacypa_identity_service import IdentityService
+from backend.services.privacypa_identity_service import IdentityService, selectable_roles
 from backend.services.privacypa_policy_service import (
     DEFAULT_SEGREGATION,
     PolicyConflict,
@@ -142,7 +142,7 @@ async def my_permissions(
         "is_admin": admin,
         "is_portal_admin": is_portal_admin_by_token(user),
         "active_role": get_active_role(),
-        "available_roles": sorted({a.role_code.value for a in assignments}),
+        "available_roles": selectable_roles(is_portal_admin_by_token(user), {a.role_code.value for a in assignments}),
         "assignments": [a.to_dict() for a in assignments],
         "permissions": permissions,
     }

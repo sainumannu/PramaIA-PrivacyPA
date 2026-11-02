@@ -6,6 +6,7 @@ from typing import Optional
 import logging
 
 from backend.services import portal_secret_sync
+from backend.utils.request_context import bind_active_role
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,9 @@ def get_current_user(
             detail="Authentication required. Please login via PramaIA Portal.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return decode_portal_token(credentials.credentials)
+    user = decode_portal_token(credentials.credentials)
+    bind_active_role(user.sub or user.email, user.tenant_role in ("global_admin", "admin"))
+    return user
 
 
 def require_admin(user: TokenPayload = Security(get_current_user)) -> TokenPayload:
