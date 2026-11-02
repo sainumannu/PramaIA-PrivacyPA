@@ -11,7 +11,7 @@
 ; ============================================================================
 
 #define MyAppName      "PramaIA-PrivacyManager"
-#define MyAppVersion "1.0.16"
+#define MyAppVersion "1.0.17"
 #define MyAppPublisher "PramaIA Platform"
 #define MyAppURL       "https://pramaia.ai"
 #define MyAppExeName   "PramaIA-PrivacyManager.exe"
