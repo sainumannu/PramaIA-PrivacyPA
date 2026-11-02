@@ -303,7 +303,6 @@ export const PramaLayout: React.FC<PramaLayoutProps> = ({ children, pageTitle })
     if (current && isGroup(current) && !openGroups.includes(current.group)) {
       toggleGroup(current.group);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePath]);
 
   const closeMobile = () => setMobileOpen(false);
