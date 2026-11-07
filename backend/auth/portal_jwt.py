@@ -5,6 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
 
+from backend.auth.portal_token_verifier import PORTAL_ISSUER, PortalTokenError, verify_portal_token
 from backend.services import portal_secret_sync
 from backend.utils.request_context import bind_active_role
 
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
-PORTAL_ISSUER = "pramaia-portal"
 
 
 def get_jwt_secret() -> Optional[str]:
@@ -49,40 +49,29 @@ class TokenPayload:
 
 
 def decode_portal_token(token: str) -> TokenPayload:
-    """Valida un JWT emesso da PramaIA Portal (HS256) o, se `OIDC_ISSUER` è configurato, dall'IdP dell'ente."""
+    """Valida un JWT emesso da PramaIA Portal (HS256 o RS256) o, se `OIDC_ISSUER` è configurato, dall'IdP dell'ente."""
     from backend.auth.oidc import decode_oidc_token, is_oidc_token
 
-    if is_oidc_token(token):
+    # I token RS256 del Portal hanno lo stesso algoritmo di quelli dell'IdP: si distinguono dall'emittente.
+    # Leggerlo senza verificare la firma è sicuro: decide solo quale verifica applicare, e un token che
+    # si dichiara del Portal deve comunque essere firmato con una chiave del Portal.
+    if _unverified_issuer(token) != PORTAL_ISSUER and is_oidc_token(token):
         return decode_oidc_token(token)
-    jwt_secret = get_jwt_secret()
-    if not jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="App non configurata. Completa il Setup Wizard per configurare l'autenticazione."
-        )
-    
+
     try:
         # `aud` si verifica sotto: i token senza destinatario (utenti, servizi verso il Portal) restano validi.
-        payload = jwt.decode(
-            token,
-            jwt_secret,
-            algorithms=["HS256"],
-            options={"require": ["sub", "exp", "iss"], "verify_aud": False},
-        )
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-    except jwt.InvalidIssuerError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token issuer")
-    except jwt.InvalidSignatureError as e:
-        # Può voler dire che il Portal ha cambiato JWT secret: l'app se lo riprende in
-        # background (portal_secret_sync.py) e il prossimo login passa.
-        portal_secret_sync.trigger_background_resync()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
-    except jwt.PyJWTError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
-
-    if payload.get("iss") != PORTAL_ISSUER:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token not issued by PramaIA Portal")
+        payload = verify_portal_token(token, verify_aud=False)
+    except PortalTokenError as e:
+        if e.reason == "not_configured":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="App non configurata. Completa il Setup Wizard per configurare l'autenticazione.",
+            )
+        if e.reason == "signature":
+            # Firma HS256 non valida: può voler dire che il Portal ha cambiato JWT secret.
+            # L'app se lo riprende in background (portal_secret_sync.py) e il prossimo login passa.
+            portal_secret_sync.trigger_background_resync()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=e.message)
 
     # Token di servizio emesso per chiamare un'app precisa (collegamento tra moduli del Portal): deve essere questa.
     audience = payload.get("aud")
@@ -92,6 +81,13 @@ def decode_portal_token(token: str) -> TokenPayload:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token issued for another application")
 
     return TokenPayload(payload)
+
+
+def _unverified_issuer(token: str) -> Optional[str]:
+    try:
+        return jwt.decode(token, options={"verify_signature": False}).get("iss")
+    except jwt.PyJWTError:
+        return None
 
 
 def own_app_id() -> str:
