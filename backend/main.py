@@ -235,7 +235,16 @@ async def get_frontend_config():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "PramaIA-PrivacyManager", "version": app.version}
+    from backend.auth.portal_token_verifier import capabilities as token_capabilities
+
+    return {
+        "status": "ok",
+        "service": "PramaIA-PrivacyManager",
+        "version": app.version,
+        # Firme dei token del Portal che l'app sa verificare (vedi portal_token_verifier.py):
+        # il Portal lo legge prima di passare alla firma RS256.
+        "token_verification": token_capabilities(),
+    }
 
 
 # ----------------------------------------------------------------------------
