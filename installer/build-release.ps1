@@ -116,6 +116,8 @@ if (-not $SkipBackend) {
 
     Set-Location $ROOT
 
+    # PyInstaller scrive anche gli INFO su stderr: con "Stop" PowerShell 5.1 si fermerebbe alla prima riga
+    $ErrorActionPreference = "Continue"
     & "$ROOT\.venv\Scripts\pyinstaller.exe" `
         --name "PramaIA-PrivacyManager" `
         --onedir `
@@ -146,8 +148,10 @@ if (-not $SkipBackend) {
         --specpath "$ROOT" `
         "run_service.py" `
         2>&1 | Tee-Object -Variable buildLog
+    $pyinstallerExit = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
 
-    if ($LASTEXITCODE -ne 0) {
+    if ($pyinstallerExit -ne 0) {
         Write-Host "  ERRORE: PyInstaller build fallita" -ForegroundColor Red
         exit 1
     }
@@ -193,7 +197,7 @@ Copy-Item "$ROOT\.env.template" "$releaseDir\.env.example" -Force
 # version.txt: a differenza di .env (preservato negli aggiornamenti), questo file
 # viene sempre sovrascritto a ogni installazione — backend/main.py lo legge per
 # riportare la versione REALE in app.version, invece del letterale fisso nel codice.
-Set-Content -Path "$releaseDir\version.txt" -Value $Version -NoNewline -Encoding utf8
+[System.IO.File]::WriteAllText((Join-Path (Resolve-Path $releaseDir) "version.txt"), $Version)  # senza BOM, anche con PowerShell 5.1
 
 foreach ($doc in @("README.md", "RUNBOOK_RIPRISTINO.md")) {
     if (Test-Path "$ROOT\$doc") {
